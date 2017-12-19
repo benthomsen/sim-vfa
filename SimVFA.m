@@ -290,7 +290,7 @@ classdef SimVFA < handle
             SI = SI.setVariable('Aa', SO.Aa);
             SI = SI.setVariable('Aact', SO.Aact);
             SI = SI.setVariable('Acmd', SO.Acmd);
-            SI = SI.setVariable('Ada_Flag', SO.adaFlag);
+            SI = SI.setVariable('Ada_Flag', int8(SO.adaFlag));
             SI = SI.setVariable('Apsim', SO.Apsim);
             SI = SI.setVariable('Ba', SO.Ba);
             SI = SI.setVariable('Bact', SO.Bact);
