@@ -250,8 +250,8 @@ classdef SimVFA < handle
 
                 
                 if saveTrim
-                    % save fields of tp_ret struct in .mat file
-                    save(saveFile,'-struct','tp_ret');
+                    % save fields of TP struct in .mat file
+                    save(saveFile,'-struct','TP');
                 end
                 
                 % clear data and stateinit from base workspace
