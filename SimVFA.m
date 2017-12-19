@@ -859,29 +859,32 @@ classdef SimVFA < handle
             
             tsim = vfa.simOpt.tsim;
             
-            figure;
+            figure('Position',[1,1, 800, 400]);
             subplot(2,2,1)
-            plot(SOO.t_sim, SOO.r_cmd(1,:))
-            hold on; plot(SOO.t_sim, SOO.z_red(1,:))
+            plot(SOO.t_sim, SOO.r_cmd(1,:), 'LineWidth', 1)
+            hold on; plot(SOO.t_sim, SOO.z_red(1,:), 'LineWidth', 1)
             xlim([0 tsim])
             title('Dihedral (rad rel. to nominal)')
+            set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
 
             subplot(2,2,2)
-            plot(SOO.t_sim, SOO.r_cmd(2,:))
-            hold on; plot(SOO.t_sim, SOO.z_red(2,:))
+            plot(SOO.t_sim, SOO.r_cmd(2,:), 'LineWidth', 1)
+            hold on; plot(SOO.t_sim, SOO.z_red(2,:), 'LineWidth', 1)
             xlim([0 tsim])
             title('Vertical Accel (ft/s^2)')
+            set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
 
             subplot(2,2,3)
-            plot(SOO.t_sim, SOO.u_red(1,:))
+            plot(SOO.t_sim, SOO.u_red(1,:)*180/pi, 'LineWidth', 1)
             xlim([0 tsim])
-            title('Aileron (rad)')
+            title('Aileron (deg)')
+            set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
 
             subplot(2,2,4)
-            plot(SOO.t_sim, SOO.u_red(2,:))
+            plot(SOO.t_sim, SOO.u_red(2,:)*180/pi, 'LineWidth', 1)
             xlim([0 tsim])
-            title('Elevator (rad)')
-            
+            title('Elevator (deg)')
+            set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
         end
     end
     
