@@ -93,10 +93,10 @@ classdef SimVFA < handle
             SO.i_input_sel = [2,3]; % outer aileron, center elevator
             SO.i_output    = 5;     % pitch rate
 
-            SO.postcomp = 1; % post-compensator version (1, 2, 3)
-            SO.q0 = 1.0; SO.epsilon = 30; %for post-compensator_v3 %best design
-            % q0 used in P0 = lyap(NAM', q0*eye[])
-            SO.s0 = []; % s0 used in A_eta = A+s0*eye[]
+            SO.postcomp = 1; % post-compensator version (1, 2, 3) - calculation of S
+            SO.q0 = 10; SO.epsilon = 30;
+            % q0 used in P0 = lyap(NAM', q0*eye[]) to find Rinv
+            SO.s0 = 0; % s0 used in A_eta = A+s0*eye[] to find Rinv
 
             SO.a22 = 1; SO.a21 = 2; SO.a20 = 1; % second-order filter coefficients
             SO.d22 = 1; SO.d21 = 2; SO.d20 = 1; % derivative coefficieints
@@ -409,14 +409,13 @@ classdef SimVFA < handle
                     % Set plant parameters
                     eta_hold = eta_i; % select dihedral angle (deg) [== ind-1] from linearized tables
 
-                    Ap = TP.A_hold(:,:,eta_hold+1);
-                    B_c_hold = TP.B_hold(:,1:5,:);
-                    Bp = B_c_hold(:,:,eta_hold+1);
+                    Ap = TP.A_hold(:,:,eta_hold+1);   % linearized state matrix (at selected dihedral)
+                    Bp = TP.B_hold(:,1:5,eta_hold+1); % linearized input matrix (at selected dihedral)
 
-                    % increase dimension (w/zeros) of controls fed to VFA sim model
-                    Cp = [eye(6), zeros(6,1)]; % take first six of seven states
+                    Cp = [eye(6), zeros(6,1)]; % all states measured in Cp except dihedral rate
 
-                    % augment plant with (nominal) actuator dynamics
+                    % augment plant with (nominal) second-order actuator dynamics
+                    % and remove altitude from states
                     A = [Ap(SO.i_state_sel,SO.i_state_sel), Bp(SO.i_state_sel,SO.i_input_sel), zeros(length(SO.i_state_sel),length(SO.i_input_sel));
                          zeros(length(SO.i_input_sel),length(SO.i_state_sel)+length(SO.i_input_sel)), eye(length(SO.i_input_sel));
                          zeros(length(SO.i_input_sel),length(SO.i_state_sel)), -SO.w_act^2*eye(length(SO.i_input_sel)), -2*SO.zeta_act*SO.w_act*eye(length(SO.i_input_sel))];
@@ -424,39 +423,43 @@ classdef SimVFA < handle
                          zeros(length(SO.i_input_sel));
                          SO.w_act^2*eye(length(SO.i_input_sel))];
 
+                    % C selects only pitch rate (q) as measurement
                     C  = [Cp(SO.i_output,SO.i_state_sel), zeros(length(SO.i_output), 2*length(SO.i_input_sel))];
+                    % Cz selects dihedral angle and vertical acceleration as measurements
                     Cz = [0,0,0,0,1,0,0,0,0,0;
                           0,TP.Vinitial*Ap(2,2),0,0,0,0,TP.Vinitial*Bp(2,SO.i_input_sel),0,0];
 
                     num_input  = size(B,2);
 
-                    % Introduce new coordinates
-                    % integrate the tracking output to make the system strictly proper
-                    index_output = [1,2];
+                    % Augment plant with integral error (for two tracked states)
+                    index_output = [1,2]; % outputs to track (from Cz)
 
-                    % this sys used in RM: 
+                    % augmented system is used in reference model and control in sim.
+                    % the integral error states are appended after actuator dynamics.
                     % Am (not in paper) = Aa - Ba*Kr,   Bm = Baz,   Cm (not in paper) = Ca
                     Aa = [A,zeros(length(A),length(index_output));
                           Cz,zeros(length(index_output))];           % "A" in paper
                     Ba = [B; zeros(length(index_output),num_input)]; % "B_3" in paper
-
+                    
+                    % Ca selects pitch rate and integral errors as measurements
                     Ca  = [C, zeros(size(C,1),length(index_output));
-                           zeros(length(index_output),length(A)),eye(length(index_output))]; % "C" in paper?
+                           zeros(length(index_output),length(A)),eye(length(index_output))]; % "C" in paper
 
-                    Da  = zeros(size(Ca,1),size(Ba,2));
+                    Da  = zeros(size(Ca,1),size(Ba,2)); % no direct feedthrough
 
                     SimVFA.checkNegative(tzero(Aa,Ba,Ca,Da)); % check whether sys is min phase
 
-                    Ba3  = Ba;
-                    Ba2  = Aa*Ba3*SO.a22 + Ba3*SO.a21;
+                    Ba3  = Ba; % full relative-degree 3 input matrix
+                    Ba2  = Aa*Ba3*SO.a22 + Ba3*SO.a21; % RD2 input path
 
-                    SimVFA.checkContObs(Aa,Ba,Ca);
+                    SimVFA.checkCtrbObsv(Aa,Ba,Ca);    % check that augmented system is ctrb and obsv
                     SimVFA.checkRelDeg(Aa,Ba,Ca,Da,2); % make sure uniform relative degree three
 
-                    % Add fictitious inputs (squaring up)
+                    % Add fictitious inputs (squaring up): augment Ba with linear
+                    % combination of columns of nullspace of OBSV matrix
                     Ba_add_pool = null([Ca; (Ca*Aa)]);
                     Ba_aug = [Ba, 0.1*(6*Ba_add_pool(:,5)+6*Ba_add_pool(:,2)+0.4*Ba_add_pool(:,6))];
-                    Da_aug = [Da, [0,0,0]']; % good design
+                    Da_aug = [Da, [0,0,0]']; % no direct feedthrough
 
                     [nrel_aug, vrel_aug, ~] = SimVFA.checkRelDeg(Aa,Ba_aug,Ca,Da_aug,2);
 
@@ -464,58 +467,45 @@ classdef SimVFA < handle
                     [vrel_aug, Perm_aug] = SimVFA.sortPerm(vrel_aug);
                     Ba_aug = (Perm_aug*Ba_aug')';
 
-                    index_m1 = []; 
-                    index_m2 = 1:3; 
-
                     Ba3_aug  = Ba_aug;
                     Ba32_aug = Aa*Ba3_aug*SO.a22 + Ba3_aug*SO.a21;
 
-                    % Find input normal form
+                    % Find input normal form of augmented square system
                     [A_temp, B_temp, C_temp, U_temp, ~, ~]...
                             = SimVFA.findNormalForm(Aa',Ca',Ba_aug',vrel_aug,nrel_aug,1);
-                        
-                    % make a new system from dual
-                    Uinv  = U_temp';
+                    % make a new system from dual - the real input normal form
+                    Uinv  = U_temp'; % eigs at origin in Aa moved to LHP
                     Atilt = A_temp'; % Atilt=U*A*Uinv
                     Btilt = C_temp'; % Btilt=U*B;
                     Ctilt = B_temp'; % Ctilt=C*Uinv;
                     Dtilt = zeros(size(Ctilt,1),size(Btilt,2));
+                    clear A_temp B_temp C_temp U_temp;
 
-                    % Cut some inputs out of above system
-                    Ai    = Atilt;
-                    Bi    = Btilt(:,index_m2);
-                    Bi3   = Bi(:,1:num_input);
-                    Bis1  = Btilt(:,index_m1);
+                    % Coordinate transform for relative degree 1 input path through
+                    Bi31  = SO.a22*Atilt^2*Btilt + SO.a21*Atilt*Btilt + SO.a20*Btilt;
+                    Bi3   = Btilt(:,1:num_input);
 
-                    Bi31  = SO.a22*Ai^2*Bi + SO.a21*Ai*Bi + SO.a20*Bi;
-
-                    Ci    = Ctilt;
-                    Bia1  = [Bi31,Bis1];
-                    Dia1  = Dtilt;
-
-                    test_MP = SimVFA.checkNegative(tzero(Ai,Bia1,Ci,Dia1)); % minimum phase flag
-
-                    num_output_i = size(Ci,1);
+                    % make sure transformed transformed squared-up system is minimum phase
+                    test_MP = SimVFA.checkNegative(tzero(Atilt,Bi31,Ctilt,Dtilt)); 
+                    
+                    num_output_i = size(Ctilt,1);
 
                     if test_MP==1
-                        Bi_aug = Bia1;
-
                         Rs = eye(num_output_i);
 
-                        [S,C_bar,~] = SimVFA.findPostComp(Bi_aug,Ci,Rs,SO.postcomp==1);
+                        % postcomp==1 gives unitary S (different than paper)
+                        [S,C_bar,~] = SimVFA.findPostComp(Bi31,Ctilt,Rs,SO.postcomp);
 
+                        [S1, ~] = SimVFA.findSquareDown(Bi3,Ctilt,S);
 
-                        [S1, ~] = SimVFA.findSquareDown(Bi3,Ci,S);
-
-                        [F,~] = SimVFA.pickFSPR(Ai,Bi_aug,C_bar,SO.q0,SO.epsilon,SO.s0);
-                        Lm = Bi_aug*F;
-
-                        Lis = Lm*S;
-                        Las = Uinv*Lis; % used in sim
+                        % F is R^(-1) in paper
+                        [F,~] = SimVFA.pickFSPR(Atilt,Bi31,C_bar,SO.q0,SO.epsilon,SO.s0);
+                        Lis = Bi31*F*S;
+                        Las = Uinv*Lis; % used in sim -- transformed back into real coordinates
 
                     end
 
-                    % LQR design for u_bl
+                    % baseline LQR design
                     Kr = lqr(Aa, Ba, SO.qk, SO.rk);
 
                     % Add to lookup tables
@@ -529,7 +519,7 @@ classdef SimVFA < handle
                     Las_M(:,:,eta_i+1)  = Las;
                     Ras_M(:,:,eta_i+1)  = F;
                     Sas_M(:,:,eta_i+1)  = S;
-                    Sas1_M(:,:,eta_i+1) = S1;  % to do
+                    Sas1_M(:,:,eta_i+1) = S1;
 
                 end
 
@@ -557,43 +547,48 @@ classdef SimVFA < handle
             SO = vfa.simOpt; % to be saved at end of function
             TP = vfa.trimPts;
             
-            SO.input_hold = TP.trim_inputs(SO.eta_nom+1, :);
-            SO.state_hold = TP.trim_states(SO.eta_nom+1, :);
-            Ap = TP.A_hold(:,:,SO.eta_nom+1);
-            B_c_hold = TP.B_hold(:,1:5,:);
-            Bp = B_c_hold(:,:,SO.eta_nom+1);
+            % no actuator dynamics or integral error in these
+            SO.input_hold = TP.trim_inputs(SO.eta_nom+1, :); % initial inputs (at nominal dihedral)
+            SO.state_hold = TP.trim_states(SO.eta_nom+1, :); % initial states (at nominal dihedral)
+            Ap = TP.A_hold(:,:,SO.eta_nom+1);   % linearized state matrix (at nominal dihedral)
+            Bp = TP.B_hold(:,1:5,SO.eta_nom+1); % linearized input matrix (at nominal dihedral)
             SO.Bp = Bp;
             
-            % increase dimension (w/zeros) of controls fed to VFA sim model
+            % use this matrix in sim to make control actions go through correct input paths
             SO.inputselect = SimVFA.selectionMatrix(5, length(SO.i_input_sel), SO.i_input_sel);
-            Cp = [eye(6), zeros(6,1)]; % take first six of seven states
-            Dp = zeros(size(Cp,1), size(Bp,2));
+            
+            Cp = [eye(6), zeros(6,1)];          % all states measured in Cp except dihedral rate
+            Dp = zeros(size(Cp,1), size(Bp,2)); % no direct feedthrough in plant
 
-            % augment plant with (nominal) actuator dynamics
+            % augment plant with (nominal) second-order actuator dynamics
+            % and remove altitude from states
             A = [Ap(SO.i_state_sel,SO.i_state_sel), Bp(SO.i_state_sel,SO.i_input_sel), zeros(length(SO.i_state_sel),length(SO.i_input_sel));
                  zeros(length(SO.i_input_sel),length(SO.i_state_sel)+length(SO.i_input_sel)), eye(length(SO.i_input_sel));
                  zeros(length(SO.i_input_sel),length(SO.i_state_sel)), -SO.w_act^2*eye(length(SO.i_input_sel)), -2*SO.zeta_act*SO.w_act*eye(length(SO.i_input_sel))];
             B = [0*Bp(SO.i_state_sel,SO.i_input_sel);
                  zeros(length(SO.i_input_sel));
-                 SO.w_act^2*eye(length(SO.i_input_sel))];
+                 SO.w_act^2*eye(length(SO.i_input_sel))]; % input matrix completely changed with actuator dynamics
 
+            % C selects only pitch rate (q) as measurement
             C  = [Cp(SO.i_output,SO.i_state_sel), zeros(length(SO.i_output), 2*length(SO.i_input_sel))];
+            % Cz selects dihedral angle and vertical acceleration as measurements
             Cz = [0,0,0,0,1,0,0,0,0,0;
                   0,TP.Vinitial*Ap(2,2),0,0,0,0,TP.Vinitial*Bp(2,SO.i_input_sel),0,0];
             SO.Cz = Cz;
             
-            D  = Dp(SO.i_output, SO.i_input_sel);
-            SO.Dz = zeros(2, length(SO.i_input_sel));
+            D  = Dp(SO.i_output, SO.i_input_sel);     % no direct feedthrough
+            SO.Dz = zeros(2, length(SO.i_input_sel)); % no direct feedthrough
 
-            num_state  = length(A);
-            num_input  = size(B,2);
+            % VFA longitudinal states w/o altitude, and with second-order actuator dynamics
+            num_state  = length(A); 
+            num_input  = size(B,2); % two inputs
 
-            % Augment plant with integral error 
-            % integrate the tracking output to make the system strictly proper
-            index_output = [1,2]; % what's this one for?
-            index_cmd    = [2,3]; % the output w
+            % Augment plant with integral error (for two tracked states)
+            index_output = [1,2]; % outputs to track (from Cz)
+            index_cmd    = [2,3]; % commands used from VFA model
 
-            % this sys used in RM: 
+            % augmented system is used in reference model and control in sim.
+            % the integral error states are appended after actuator dynamics.
             % Am (not in paper) = Aa - Ba*Kr,   Bm = Baz,   Cm (not in paper) = Ca
             Aa = [A,zeros(length(A),length(index_output));
                   Cz,zeros(length(index_output))];           % "A" in paper
@@ -602,30 +597,35 @@ classdef SimVFA < handle
             SO.Ba = Ba;
             Baz = [0*B; -eye(num_input)];                    % "B_z" in paper
 
+            % Ca selects pitch rate and integral errors as measurements
             Ca  = [C, zeros(size(C,1),length(index_output));
-                   zeros(length(index_output),length(A)),eye(length(index_output))]; % "C" in paper?
+                   zeros(length(index_output),length(A)),eye(length(index_output))]; % "C" in paper
             SO.Ca = Ca;
-            SO.Caz = [Cz, zeros(length(index_cmd))];
+            SO.Caz = [Cz, zeros(length(index_cmd))]; % Caz selects dihedral angle and vertical acceleration as measurements
 
-            Da  = zeros(size(Ca,1),size(Ba,2));
+            Da  = zeros(size(Ca,1),size(Ba,2)); % no direct feedthrough
 
             SimVFA.checkNegative(tzero(Aa,Ba,Ca,Da)); % check whether sys is min phase
 
+            % B1 takes the two desired input paths from Bp (w/o actuators),
+            % removes altitude as state, and augments states with actuator states
             B1   = [Bp(SO.i_state_sel,SO.i_input_sel);
                     zeros(2*length(SO.i_input_sel),length(SO.i_input_sel))];
-            Daz1 = [D; TP.Vinitial*Bp(2,SO.i_input_sel)];
+            Daz1 = [D; TP.Vinitial*Bp(2,SO.i_input_sel)]; % direct feedthrough
 
-            Ba3  = Ba;
-            Ba2  = Aa*Ba3*SO.a22 + Ba3*SO.a21;
-            Ba1  = [B1; Daz1];
+            % Ba[i] is relative degree i input path
+            Ba3  = Ba; % full relative-degree 3 input matrix
+            Ba2  = Aa*Ba3*SO.a22 + 2*Ba3*SO.a21;
+            Ba1  = [B1; Daz1]; % == Aa^2*Ba3*SO.a22 + 0.7*Aa*Ba3*SO.a21 + Ba3 (why not eq.75 in paper?)
 
-            SimVFA.checkContObs(Aa,Ba,Ca);
+            SimVFA.checkCtrbObsv(Aa,Ba,Ca);    % check that augmented system is ctrb and obsv
             SimVFA.checkRelDeg(Aa,Ba,Ca,Da,2); % make sure uniform relative degree three
 
-            % Add fictitious inputs (squaring up)
+            % Add fictitious inputs (squaring up): augment Ba with linear
+            % combination of columns of nullspace of OBSV matrix
             Ba_add_pool = null([Ca; (Ca*Aa)]);
             Ba_aug = [Ba, 0.1*(6*Ba_add_pool(:,5)+6*Ba_add_pool(:,2)+0.4*Ba_add_pool(:,6))];
-            Da_aug = [Da, [0,0,0]']; % good design
+            Da_aug = [Da, [0,0,0]']; % no direct feedthrough
 
             [nrel_aug, vrel_aug, ~] = SimVFA.checkRelDeg(Aa,Ba_aug,Ca,Da_aug,2);
 
@@ -633,52 +633,40 @@ classdef SimVFA < handle
             [vrel_aug, Perm_aug] = SimVFA.sortPerm(vrel_aug);
             Ba_aug = (Perm_aug*Ba_aug')';
 
-            index_m1 = []; 
-            index_m2 = 1:3; 
+%             index_m1 = []; 
+%             index_m2 = 1:3; 
 
-            % Find input normal form
+            % Find input normal form of augmented square system
             [A_temp, B_temp, C_temp, U_temp, ~, ~]...
                     = SimVFA.findNormalForm(Aa',Ca',Ba_aug',vrel_aug,nrel_aug,1);
-            % make a new system from dual
-            Uinv  = U_temp';
+            % make a new system from dual - the real input normal form
+            Uinv  = U_temp'; % eigs at origin in Aa moved to LHP
             Atilt = A_temp'; % Atilt=U*A*Uinv
             Btilt = C_temp'; % Btilt=U*B;
             Ctilt = B_temp'; % Ctilt=C*Uinv;
             Dtilt = zeros(size(Ctilt,1),size(Btilt,2));
+            clear A_temp B_temp C_temp U_temp;
+            
+            % Coordinate transform for relative degree 1 input path through
+            Bi31  = SO.a22*Atilt^2*Btilt + SO.a21*Atilt*Btilt + SO.a20*Btilt;
 
-            % Cut some inputs out of above system
-            Ai    = Atilt;
-            Bi    = Btilt(:,index_m2);
-            Bi3   = Bi(:,1:num_input);
-            Bis1  = Btilt(:,index_m1);
+            % make sure transformed transformed squared-up system is minimum phase
+            test_MP = SimVFA.checkNegative(tzero(Atilt,Bi31,Ctilt,Dtilt)); 
 
-            Bi31  = SO.a22*Ai^2*Bi + SO.a21*Ai*Bi + SO.a20*Bi;
-
-            Ci    = Ctilt;
-            Bia1  = [Bi31,Bis1];
-            Dia1  = Dtilt;
-
-            test_MP = SimVFA.checkNegative(tzero(Ai,Bia1,Ci,Dia1)); % minimum phase flag
-            % Defined here and also above
-
-            num_state_i  = length(Ai);
-            num_input_i  = size(Bi3,2);
-            num_output_i = size(Ci,1);
+            num_state_i  = length(Atilt); % states in augmented system
+            num_output_i = size(Ctilt,1);
             num_cmd = length(index_cmd);
 
             if test_MP==1
-                Bi_aug = Bia1;
-
                 Rs = eye(num_output_i);
 
-                [S,C_bar,~] = SimVFA.findPostComp(Bi_aug,Ci,Rs,SO.postcomp);
+                % postcomp==1 gives unitary S (different than paper)
+                [S,C_bar,~] = SimVFA.findPostComp(Bi31,Ctilt,Rs,SO.postcomp);
 
-                [F,~] = SimVFA.pickFSPR(Ai,Bi_aug,C_bar,SO.q0,SO.epsilon,SO.s0);
-                Lm = Bi_aug*F;
-
-                Lis = Lm*S;
-                SO.Las = Uinv*Lis; % used in sim
-
+                % F is R^(-1) in paper
+                [F,~] = SimVFA.pickFSPR(Atilt,Bi31,C_bar,SO.q0,SO.epsilon,SO.s0);
+                Lis = Bi31*F*S;
+                SO.Las = Uinv*Lis; % used in sim -- transformed back into real coordinates
             end
 
             % Reference Model Setup
@@ -686,9 +674,9 @@ classdef SimVFA < handle
             SO.Si3 = [eye(num_state),zeros(num_state,num_state_i-num_state)];
 
             if SO.uncertFlag
-                SO.Psi3_s(:,num_state+1:num_state_i) = zeros(num_input_i,num_cmd);
-                SO.Psi2_s(:,num_state+1:num_state_i) = zeros(num_input_i,num_cmd);
-                SO.Psi1_s(:,num_state+1:num_state_i) = zeros(num_input_i,num_cmd);
+                SO.Psi3_s(:,num_state+1:num_state_i) = zeros(num_input,num_cmd);
+                SO.Psi2_s(:,num_state+1:num_state_i) = zeros(num_input,num_cmd);
+                SO.Psi1_s(:,num_state+1:num_state_i) = zeros(num_input,num_cmd);
                 SO.Lambda_s = SO.lambda_s*eye(num_input); % actuator effectiveness matrix
             else
                 SO.Psi3_s = 0*SO.Psi3_s;
@@ -697,7 +685,7 @@ classdef SimVFA < handle
                 SO.Lambda_s = eye(num_input);
             end
             
-            Asim = Aa + Ba3*SO.Psi3_s + Ba1*SO.Psi1_s + Ba2*SO.Psi2_s; % do not introduce the uncertainty in Cp.
+            Asim = Aa + Ba3*SO.Psi3_s + Ba2*SO.Psi2_s + Ba1*SO.Psi1_s; % do not introduce the uncertainty in Cp.
             Asim(7:10,7:10) = [zeros(2),eye(2); -SO.w_act_a^2*eye(2),-2*SO.zeta_act_a*SO.w_act_a*eye(2)];
             SO.Apsim = Ap;
             SO.Apsim(SO.i_state_sel,SO.i_state_sel) = Asim(1:(num_state-2*num_input),1:(num_state-2*num_input));
@@ -707,23 +695,23 @@ classdef SimVFA < handle
 
             % Simulation parameters
             % high-order tuner gains
-            SO.Gamma.l = 1000*eye(num_input_i);
-            SO.Gamma.vl = 10000*eye(num_input_i);
+            SO.Gamma.l = 1000*eye(num_input);
+            SO.Gamma.vl = 10000*eye(num_input);
             SO.Gamma.p1 = 10*eye(num_state-2*num_input);
             SO.Gamma.p2 = 10*eye(num_state-2*num_input);
             SO.Gamma.p3 = 10*eye(num_state);
             SO.Gamma.p31 = 1000*eye(num_output_i);
-            SO.Gamma.p31xm = SO.Gamma.p31(1:num_input_i,1:num_input_i);
+            SO.Gamma.p31xm = SO.Gamma.p31(1:num_input,1:num_input);
             SO.Gamma.p32 = 1000*eye(num_output_i);
 
             % intial conditions
-            SO.lambda_0 = eye(num_input_i);
-            SO.vlambda_0 = eye(num_input_i);
-            SO.psi1_0 = zeros(num_state-2*num_input,num_input_i);
-            SO.psi2_0 = zeros(num_state-2*num_input,num_input_i);
-            SO.psi3_0 = zeros(num_state,num_input_i);
+            SO.lambda_0 = eye(num_input);
+            SO.vlambda_0 = eye(num_input);
+            SO.psi1_0 = zeros(num_state-2*num_input,num_input);
+            SO.psi2_0 = zeros(num_state-2*num_input,num_input);
+            SO.psi3_0 = zeros(num_state,num_input);
             SO.psi31_0 = zeros(num_output_i,num_output_i);
-            SO.psi31xm_0 = zeros(num_input_i,num_input_i);
+            SO.psi31xm_0 = zeros(num_input,num_input);
             SO.psi32_0 = zeros(num_output_i,num_output_i);
 
             % more high-order tuner gains
@@ -749,12 +737,12 @@ classdef SimVFA < handle
             SO.Cact_dot = [zeros(num_input),eye(num_input)];
             
             % process noise
-            SO.d_seed = (1:num_input_i)';
+            SO.d_seed = (1:num_input)';
             SO.d_sam  = 1;
             SO.d_mean = 0;
 
             % tracking feedthrough noise (Z)
-            SO.n_seed = (1:num_input_i)';
+            SO.n_seed = (1:num_input)';
             SO.n_sam  = 1;
             SO.n_mean = 0;    
 
@@ -861,10 +849,10 @@ classdef SimVFA < handle
             
             figure('Position',[1,1, 800, 400]);
             subplot(2,2,1)
-            plot(SOO.t_sim, SOO.r_cmd(1,:), 'LineWidth', 1)
-            hold on; plot(SOO.t_sim, SOO.z_red(1,:), 'LineWidth', 1)
+            plot(SOO.t_sim, SOO.r_cmd(1,:)*180/pi + vfa.simOpt.eta_nom, 'LineWidth', 1)
+            hold on; plot(SOO.t_sim, SOO.z_red(1,:)*180/pi + vfa.simOpt.eta_nom, 'LineWidth', 1)
             xlim([0 tsim])
-            title('Dihedral (rad rel. to nominal)')
+            title('Dihedral (deg)')
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
 
             subplot(2,2,2)
@@ -889,7 +877,7 @@ classdef SimVFA < handle
     end
     
     methods (Static)
-        function [ctrbM, obsM] = checkContObs(A,B,C,mode)
+        function [ctrbM, obsM] = checkCtrbObsv(A,B,C,mode)
         % Check controllability and observability of {A, B, C}
             if (nargin < 4)
                 mode = 3;
@@ -1259,31 +1247,31 @@ classdef SimVFA < handle
             end            
         end
         
-        function [S,C_bar,CB_bar] = findPostComp(B,C_aug,R0,ver)
+        function [S,C_bar,CB_bar] = findPostComp(B,C,R0,ver)
         % Post-compensator
             if ver == 1
                 R0_invsqrt = inv(sqrtm(R0));
-                [U,~,V] = svd(B'*C_aug'*R0_invsqrt);
-                W = (U*V')';
+                [U,~,V] = svd(B'*C'*R0_invsqrt);
+                W = (U*V')'; % directions from SVD of (CB)^T
                 S = W'*R0_invsqrt;
 
-                C_bar  = S*C_aug;
+                C_bar  = S*C;
                 CB_bar = C_bar*B;
 
                 SimVFA.checkPD(CB_bar);
                 SimVFA.checkSym(CB_bar);
             elseif ver == 2
-                S = R0*inv(C_aug*B);
+                S = R0*inv(C*B);
 
-                C_bar  = S*C_aug;
+                C_bar  = S*C;
                 CB_bar = C_bar*B;
 
                 SimVFA.checkPD(CB_bar);
                 SimVFA.checkSym(CB_bar);
             else
-                S = R0*(C_aug*B)';
+                S = R0*(C*B)';
 
-                C_bar  = S*C_aug;
+                C_bar  = S*C;
                 CB_bar = C_bar*B;
 
                 SimVFA.checkPD(CB_bar);
