@@ -873,6 +873,46 @@ classdef SimVFA < handle
             xlim([0 tsim])
             title('Elevator (deg)')
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
+                    
+            
+            % plot adaptive parameters
+            steps = length(SOO.t_sim);
+            
+            norm_lambda_ada = zeros(steps, 1);
+            norm_psi1_ada   = zeros(steps, 1);
+            norm_psi2_ada   = zeros(steps, 1); 
+            norm_psi31_ada  = zeros(steps, 1);
+            norm_psi32_ada  = zeros(steps, 1);
+            norm_psi3_ada   = zeros(steps, 1);
+            
+            for i=1:steps
+                norm_lambda_ada(i) = norm(SOO.lambda_ada(:,:,i));
+                norm_psi1_ada(i) = norm(SOO.psi1_ada(:,:,i));
+                norm_psi2_ada(i) = norm(SOO.psi2_ada(:,:,i));
+                norm_psi31_ada(i) = norm(SOO.psi31_ada(:,:,i));
+                norm_psi32_ada(i) = norm(SOO.psi32_ada(:,:,i));
+                norm_psi3_ada(i) = norm(SOO.psi3_ada(:,:,i));
+            end
+            
+            norm_lambda_ada = norm_lambda_ada/norm_lambda_ada(end);
+            norm_psi1_ada   = norm_psi1_ada/norm_psi1_ada(end);
+            norm_psi2_ada   = norm_psi2_ada/norm_psi2_ada(end);
+            norm_psi31_ada  = norm_psi31_ada/norm_psi31_ada(end);
+            norm_psi32_ada  = norm_psi32_ada/norm_psi32_ada(end);
+            norm_psi3_ada   = norm_psi3_ada/norm_psi3_ada(end);
+            
+            norms = [norm_lambda_ada, norm_psi1_ada, norm_psi2_ada, ...
+                    norm_psi31_ada, norm_psi32_ada, norm_psi3_ada];
+                
+            figure('Position',[100,100, 800, 400]);
+            plot(SOO.t_sim, norms, 'LineWidth', 1);
+            xlim([0 tsim]);
+            grid on;
+            title('Normalized Learned Parameters')
+            h=legend('$\|\Lambda\|$', '$\|\Psi_1\|$', '$\|\Psi_2\|$', '$\|\Psi_3^1\|$', '$\|\Psi_3^2\|$', '$\|\Psi_3\|$');
+            set(h,'fontsize',vfa.pltOpt.legfontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname,'Interpreter','Latex','Location','NorthEast')
+            set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
+
         end
     end
     
@@ -1122,8 +1162,8 @@ classdef SimVFA < handle
                 else
                     disp(strcat('The system_',name,' does not have tzeros'));
                 end
-                N = SimVFA.findLeftAnni(B);
-                M = SimVFA.findRightAnni(C);
+                N = SimVFA.findLeftAnni(B);  % NB = 0
+                M = SimVFA.findRightAnni(C); % CM = 0
             end            
         end
         
@@ -1288,23 +1328,20 @@ classdef SimVFA < handle
         
         function [F,P] = pickFSPR(A,B,C,q0,epsilon,s0)
         % Pick F which is strictly positive real
-
+        %   See paper "Synthesis of Static Output Feedback SPR Systems via
+        %   LQR Weighting Matrix Design" for some insight
+        
             if (nargin==5 || isempty(s0))
                 s0 = 0.2;
             end
 
             name = [inputname(1),',',inputname(2),',',inputname(3)];
 
-            Aname  = inputname(1);
-            Bname  = inputname(2);
-            Cname  = inputname(3);
             CLname = ['(',inputname(1),'-',inputname(2),'F',inputname(3),')',',',inputname(2),',',inputname(3)];
 
             A_eta = A+s0*eye(length(A));
             n = length(A);
             m = size(B,2);
-            p = size(C,1);
-            r = rank(B*C);
 
             F = zeros(n,m);
             P = zeros(n,n);
@@ -1323,7 +1360,7 @@ classdef SimVFA < handle
                     NAM = N*A*M;
                     Q0  = q0*eye(length(NAM));
                     P0  = lyap(NAM',Q0);
-                    P   = C'*inv(CB)*C+N'*P0*N;
+                    P   = C'*inv(CB)*C+N'*P0*N; % PB = C'
                     Q   = -A'*P - P*A;
                     Q_test = SimVFA.checkPD(Q);
                     if Q_test==1
@@ -1334,8 +1371,10 @@ classdef SimVFA < handle
                     else
 
                         Rlinv = inv(CB)*(C*A_eta*B+(C*A_eta*B)')*inv(CB)+epsilon*eye(m);
+%                         RQ0 = (C*A*M+(N*A*B)'*P0)*inv(Q0)*(C*A*M+(N*A*B)'*P0)';
+%                         Rlinv = inv(CB)*(C*A*B+(C*A*B)' + RQ0)*inv(CB)+epsilon*eye(m);
                         SimVFA.checkPD(Rlinv);
-                        Ql = -A'*P - P*A + P*B*Rlinv*B'*P;
+                        Ql = -A'*P - P*A + P*B*Rlinv*B'*P; % Algebraic Riccati Eqn
                         Ql_test = SimVFA.checkPD(Ql);
 
                         F = Rlinv;
@@ -1368,7 +1407,7 @@ classdef SimVFA < handle
                     end
                 end
             else
-                disp(strcat('(',Cname,'*',Bname,') is not SPD, or the system is not minimum phase'));
+                disp(strcat('(',inputname(3),'*',inputname(2),') is not SPD, or the system is not minimum phase'));
             end
         end
         

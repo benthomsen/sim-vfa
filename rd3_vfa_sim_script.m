@@ -47,7 +47,7 @@ opt.dataPath   = ['data', filesep];
 opt.adaFlag    = true;
 opt.uncertFlag = true;
 opt.actMode    = 'Slow';
-opt.reTrim     = false;
+opt.reTrim     = true;
 
 vfa = SimVFA(opt);
 vfa.runSim();
