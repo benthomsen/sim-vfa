@@ -57,27 +57,21 @@ classdef SimVFA < handle
             
             % actuator parameters
             if SO.uncertFlag
+                SO.Psi1_scale = 0.01;
+                SO.Psi2_scale = 0;
+                SO.Psi3_scale = 0.01;
                 if strfind(SO.actMode, 'Fast')
                     SO.w_act_a    = 1.5;
                     SO.zeta_act_a = 0.7; % best for fast act
                     SO.lambda_s   = 0.1;
-                    SO.Psi1_scale = 0.005;
-                    SO.Psi2_scale = 0.0001;
-                    SO.Psi3_scale = 0.005;
                 elseif strfind(SO.actMode, 'Slow')
                     SO.w_act_a    = 0.5;
                     SO.zeta_act_a = 2;
                     SO.lambda_s   = 0.2; % good for intp
-                    SO.Psi1_scale = 0.005;
-                    SO.Psi2_scale = 0.0001;
-                    SO.Psi3_scale = 0.005;   
                 else
                     SO.w_act_a    = 1;
                     SO.zeta_act_a = 0.7;
                     SO.lambda_s   = 0.2;
-                    SO.Psi1_scale = 0.005;
-                    SO.Psi2_scale = 0.0001;
-                    SO.Psi3_scale = 0.005;  
                 end
             else
                 SO.w_act_a    = 1;
