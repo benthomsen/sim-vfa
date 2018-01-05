@@ -276,32 +276,32 @@ classdef SimVFA < handle
                     TP.trim_states(i+1,:)   = op_point.States.x;
 
                     % rank of controllability matrix w/3 inputs
-                    TP.rankhold(i+1) = rank(ctrb(linsys.A,linsys.B(1:7,[1 2 4])));
+                    TP.rank_ctrb(i+1) = rank(ctrb(linsys.A,linsys.B(1:7,[1 2 4])));
 
                     % test different subsets of B for ctrb, obsv:
                     Co = ctrb(linsys.A,linsys.B(1:7, [1 2]));
                     % ratio of the smallest singular value of Co to the largest
-                    TP.sv_hold_1(i+1) = 1/cond(Co);
+                    TP.sv_1(i+1) = 1/cond(Co);
 
                     Co = ctrb(linsys.A,linsys.B(1:7,[1 2 4]));
                     % ratio of the smallest singular value of Co to the largest
-                    TP.sv_hold_2(i+1) = 1/cond(Co);
+                    TP.sv_2(i+1) = 1/cond(Co);
 
                     Co = ctrb(linsys.A,linsys.B(1:7, [1 2 3 4]));
                     % ratio of the smallest singular value of Co to the largest
-                    TP.sv_hold_3(i+1) = 1/cond(Co);
+                    TP.sv_3(i+1) = 1/cond(Co);
 
                     Co = obsv(linsys.A,[1 zeros(1,6); 0 0 1 0 0 0 0; 0 0 0 0 1 0 0]);
                     % ratio of the smallest singular value of Co to the largest
-                    TP.sv_hold_4(i+1) = 1/cond(Co);
+                    TP.sv_4(i+1) = 1/cond(Co);
 
                     Co = ctrb(linsys.A,linsys.B(1:7, 1:5));
                     % ratio of the smallest singular value of Co to the largest
-                    TP.sv_hold_5(i+1) = 1/cond(Co);
+                    TP.sv_5(i+1) = 1/cond(Co);
 
                     Co = obsv(linsys.A,eye(7,7));
                     % ratio of the smallest singular value of Co to the largest
-                    TP.sv_hold_6(i+1) = 1/cond(Co);
+                    TP.sv_6(i+1) = 1/cond(Co);
                     
                     % update the saved struct
                     vfa.trimPts = TP;
@@ -338,7 +338,7 @@ classdef SimVFA < handle
                 SI = SI.setVariable('Bact', SO.Bact);
                 SI = SI.setVariable('Bact_x', SO.Bact_x);
                 SI = SI.setVariable('Bcmd', SO.Bcmd);
-                SI = SI.setVariable('Bm', SO.Bm);
+                SI = SI.setVariable('Baz', SO.Baz);
                 SI = SI.setVariable('Bp', SO.Bp);
                 SI = SI.setVariable('Ca', SO.Ca);
                 SI = SI.setVariable('Cact', SO.Cact);
@@ -427,7 +427,7 @@ classdef SimVFA < handle
                 SI = SI.setVariable('Bact', SO.Bact);
                 SI = SI.setVariable('Bact_x', SO.Bact_x);
                 SI = SI.setVariable('Bcmd', SO.Bcmd);
-                SI = SI.setVariable('Bm', SO.Bm);
+                SI = SI.setVariable('Baz', SO.Baz);
                 SI = SI.setVariable('Bp', SO.Bp);
                 SI = SI.setVariable('Ca', SO.Ca);
                 SI = SI.setVariable('Cact', SO.Cact);
@@ -438,7 +438,7 @@ classdef SimVFA < handle
                 SI = SI.setVariable('Gamma_l', SO.Gamma.l);
                 SI = SI.setVariable('Gamma_p1', SO.Gamma.p1);
                 SI = SI.setVariable('Gamma_p2', SO.Gamma.p2);
-                SI = SI.setVariable('Gamma_p202', SO.Gamma.p202);
+                SI = SI.setVariable('Gamma_p21', SO.Gamma.p21);
                 SI = SI.setVariable('Lambda_s', SO.Lambda_s);
                 SI = SI.setVariable('L', SO.L);
                 SI = SI.setVariable('Si1', SO.Si1);
@@ -459,7 +459,7 @@ classdef SimVFA < handle
                 SI = SI.setVariable('n_seed', SO.n_seed);
                 SI = SI.setVariable('psi1_0', SO.psi1_0);
                 SI = SI.setVariable('psi2_0', SO.psi2_0);
-                SI = SI.setVariable('psi202_0', SO.psi202_0);
+                SI = SI.setVariable('psi21_0', SO.psi21_0);
                 SI = SI.setVariable('r_timeseries', SO.r_timeseries);
                 SI = SI.setVariable('samplet', SO.samplet);
                 SI = SI.setVariable('tpower', SO.tpower);
@@ -513,10 +513,9 @@ classdef SimVFA < handle
                     % iterate through systems linearized at fixed dihedrals
                     for eta_i = (min(TP.etasweep):max(TP.etasweep))
                         % Set plant parameters
-                        eta_hold = eta_i; % select dihedral angle (deg) [== ind-1] from linearized tables
 
-                        Ap = TP.A_hold(:,:,eta_hold+1);   % linearized state matrix (at selected dihedral)
-                        Bp = TP.B_hold(:,1:5,eta_hold+1); % linearized input matrix (at selected dihedral)
+                        Ap = TP.A_hold(:,:,eta_i+1);   % linearized state matrix (at selected dihedral)
+                        Bp = TP.B_hold(:,1:5,eta_i+1); % linearized input matrix (at selected dihedral)
 
                         Cp = [eye(6), zeros(6,1)]; % all states measured in Cp except dihedral rate
 
@@ -555,7 +554,7 @@ classdef SimVFA < handle
 
                         SimVFA.checkNegative(tzero(Aa,Ba,Ca,Da)); % check whether sys is min phase
 
-                        Ba3  = Ba; % full relative-degree 3 input matrix
+                        Ba3  = SO.a22*Ba; % full relative-degree 3 input matrix
                         Ba2  = Aa*Ba3*SO.a22 + Ba3*SO.a21; % RD2 input path
 
                         SimVFA.checkCtrbObsv(Aa,Ba,Ca);    % check that augmented system is ctrb and obsv
@@ -573,9 +572,9 @@ classdef SimVFA < handle
                         [vrel_aug, Perm_aug] = SimVFA.sortPerm(vrel_aug);
                         Ba_aug = (Perm_aug*Ba_aug')';
 
-                        Ba3_aug  = Ba_aug;
+                        Ba3_aug  = SO.a22*Ba_aug;
                         Ba32_aug = Aa*Ba3_aug*SO.a22 + Ba3_aug*SO.a21;
-
+                        
                         % Find input normal form of augmented square system
                         [A_temp, B_temp, C_temp, U_temp, ~, ~]...
                                 = SimVFA.findNormalForm(Aa',Ca',Ba_aug',vrel_aug,nrel_aug,1);
@@ -589,7 +588,7 @@ classdef SimVFA < handle
 
                         % Coordinate transform for relative degree 1 input path through
                         Bi31  = SO.a22*Atilt^2*Btilt + SO.a21*Atilt*Btilt + SO.a20*Btilt;
-                        Bi3   = Btilt(:,1:num_input);
+                        Bi3   = SO.a22*Btilt(:,1:num_input);
 
                         % make sure transformed transformed squared-up system is minimum phase
                         test_MP = SimVFA.checkNegative(tzero(Atilt,Bi31,Ctilt,Dtilt)); 
@@ -654,10 +653,9 @@ classdef SimVFA < handle
                     % iterate through systems linearized at fixed dihedrals
                     for eta_i = (min(TP.etasweep):max(TP.etasweep))
                         % Set plant parameters
-                        eta_hold = eta_i; % select dihedral angle (deg) [== ind-1] from linearized tables
 
-                        Ap = TP.A_hold(:,:,eta_hold+1);   % linearized state matrix (at selected dihedral)
-                        Bp = TP.B_hold(:,1:5,eta_hold+1); % linearized input matrix (at selected dihedral)
+                        Ap = TP.A_hold(:,:,eta_i+1);   % linearized state matrix (at selected dihedral)
+                        Bp = TP.B_hold(:,1:5,eta_i+1); % linearized input matrix (at selected dihedral)
 
                         Cp = [eye(6), zeros(6,1)]; % all states measured in Cp except dihedral rate
 
@@ -723,7 +721,7 @@ classdef SimVFA < handle
 
                         % Coordinate transform for relative degree 1 input path through
                         Bi21 = SO.a11*Atilt*Btilt + SO.a10*Btilt;
-                        Bi2   = Btilt(:,1:num_input);
+                        Bi2  = SO.a11*Btilt(:,1:num_input);
 
                         % make sure transformed transformed squared-up system is minimum phase
                         test_MP = SimVFA.checkNegative(tzero(Atilt,Bi21,Ctilt,Dtilt)); 
@@ -830,7 +828,7 @@ classdef SimVFA < handle
                 SO.Aa = Aa;
                 Ba = [B; zeros(length(index_output),num_input)]; % "B_3" in paper
                 SO.Ba = Ba;
-                Baz = [0*B; -eye(num_input)];                    % "B_z" in paper
+                SO.Baz = [0*B; -eye(num_input)]; % "B_z" in paper (reference model input for r)
 
                 % Ca selects pitch rate and integral errors as measurements
                 Ca  = [C, zeros(size(C,1),length(index_output));
@@ -849,7 +847,7 @@ classdef SimVFA < handle
                 Daz1 = [D; TP.Vinitial*Bp(2,SO.i_input_sel)]; % direct feedthrough
 
                 % Ba[i] is relative degree i input path
-                Ba3  = Ba; % full relative-degree 3 input matrix
+                Ba3  = SO.a22*Ba; % full relative-degree 3 input matrix
                 Ba2  = Aa*Ba3*SO.a22 + 2*Ba3*SO.a21;
                 Ba1  = [B1; Daz1]; % == Aa^2*Ba3*SO.a22 + 0.7*Aa*Ba3*SO.a21 + Ba3 (why not eq.75 in paper?)
 
@@ -922,8 +920,6 @@ classdef SimVFA < handle
                 SO.Apsim = Ap;
                 SO.Apsim(SO.i_state_sel,SO.i_state_sel) = Asim(1:(num_state-2*num_input),1:(num_state-2*num_input));
 
-                SO.Bm = Baz; % reference model input matrix for r
-
                 % Simulation parameters
                 % high-order tuner gains
                 SO.Gamma.l = 1000*eye(num_input);
@@ -974,8 +970,6 @@ classdef SimVFA < handle
                       0,TP.Vinitial*Ap(2,2),0,0,0,0,TP.Vinitial*Bp(2,SO.i_input_sel)];
 
                 SO.Cz = Cz;
-
-                D  = Dp(SO.i_output, SO.i_input_sel);     % no direct feedthrough
                 SO.Dz = zeros(2, length(SO.i_input_sel)); % no direct feedthrough
 
                 % VFA longitudinal states w/o altitude, and with first-order actuator dynamics
@@ -994,7 +988,7 @@ classdef SimVFA < handle
                 SO.Aa = Aa;
                 Ba = [B; zeros(length(index_output),num_input)]; % "B_3" in paper
                 SO.Ba = Ba;
-                Baz = [0*B; -eye(num_input)];                    % "B_z" in paper
+                SO.Baz = [0*B; -eye(num_input)]; % "B_z" in paper (reference model input for r)
 
                 % Ca selects pitch rate and integral errors as measurements
                 Ca  = [C, zeros(size(C,1),length(index_output));
@@ -1013,7 +1007,7 @@ classdef SimVFA < handle
                 Daz1 = -inv(diag([SO.eig_act1,SO.eig_act2]))*Cz*B;
 
                 % Ba[i] is relative degree i input path
-                Ba2  = Ba; % full relative-degree 2 input matrix
+                Ba2  = SO.a11*Ba; % full relative-degree 2 input matrix
                 Ba1  = [B1; Daz1];
 
                 SimVFA.checkCtrbObsv(Aa,Ba,Ca);    % check that augmented system is ctrb and obsv
@@ -1084,20 +1078,18 @@ classdef SimVFA < handle
                 SO.Apsim = Ap;
                 SO.Apsim(SO.i_state_sel,SO.i_state_sel) = Asim(1:(num_state-num_input),1:(num_state-num_input));
 
-                SO.Bm = Baz; % reference model input matrix for r
-
                 % Simulation parameters
                 % tuner gains
                 SO.Gamma.l = 1000*eye(num_input);
                 SO.Gamma.p1 = 0.1*eye(num_state-num_input);
                 SO.Gamma.p2 = 0.1*eye(num_state);
-                SO.Gamma.p202 = 200*eye(num_output_i);
+                SO.Gamma.p21 = 200*eye(num_output_i);
 
                 % intial conditions
                 SO.lambda_0 = eye(num_input);
                 SO.psi1_0 = zeros(num_state-num_input,num_input);
                 SO.psi2_0 = zeros(num_state,num_input);
-                SO.psi202_0 = zeros(num_output_i,num_output_i);
+                SO.psi21_0 = zeros(num_output_i,num_output_i);
 
                 SO.xm_0 = zeros(num_state_i,1);
 
@@ -1207,12 +1199,12 @@ classdef SimVFA < handle
             % Figure 5: S_min [-]
             figure;
             hold on; box on;
-            plot(TP.trim_states(:,6)*180/pi,TP.sv_hold_1,'k-o','markersize',5)
-            plot(TP.trim_states(:,6)*180/pi,TP.sv_hold_2,'k-^','markersize',5)
-            plot(TP.trim_states(:,6)*180/pi,TP.sv_hold_3,'k.-','markersize',5)
-            plot(TP.trim_states(:,6)*180/pi,TP.sv_hold_5,'k-','markersize',5)
-            plot(TP.trim_states(:,6)*180/pi,TP.sv_hold_4,'r')
-            plot(TP.trim_states(:,6)*180/pi,TP.sv_hold_6,'b')
+            plot(TP.trim_states(:,6)*180/pi,TP.sv_1,'k-o','markersize',5)
+            plot(TP.trim_states(:,6)*180/pi,TP.sv_2,'k-^','markersize',5)
+            plot(TP.trim_states(:,6)*180/pi,TP.sv_3,'k.-','markersize',5)
+            plot(TP.trim_states(:,6)*180/pi,TP.sv_5,'k-','markersize',5)
+            plot(TP.trim_states(:,6)*180/pi,TP.sv_4,'r')
+            plot(TP.trim_states(:,6)*180/pi,TP.sv_6,'b')
             ylabel('$S_{\min}$ [-]','fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname,  'Interpreter','Latex')
             xlabel('Dihedral angle [deg]','fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
             h=legend('$\bar B_1$','$\bar B_2$','$\bar B_3$','$\bar B_4$');
@@ -1230,26 +1222,26 @@ classdef SimVFA < handle
             figure('Position',[1,1, 800, 400]);
             subplot(2,2,1)
             plot(SOO.t_sim, SOO.r_cmd(1,:)*180/pi + vfa.simOpt.eta_nom, 'LineWidth', 1)
-            hold on; plot(SOO.t_sim, SOO.z_red(1,:)*180/pi + vfa.simOpt.eta_nom, 'LineWidth', 1)
+            hold on; plot(SOO.t_sim, SOO.z(1,:)*180/pi + vfa.simOpt.eta_nom, 'LineWidth', 1)
             xlim([0 tsim])
             title('Dihedral (deg)')
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
 
             subplot(2,2,2)
             plot(SOO.t_sim, SOO.r_cmd(2,:), 'LineWidth', 1)
-            hold on; plot(SOO.t_sim, SOO.z_red(2,:), 'LineWidth', 1)
+            hold on; plot(SOO.t_sim, SOO.z(2,:), 'LineWidth', 1)
             xlim([0 tsim])
             title('Vertical Accel (ft/s^2)')
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
 
             subplot(2,2,3)
-            plot(SOO.t_sim, SOO.u_red(1,:)*180/pi, 'LineWidth', 1)
+            plot(SOO.t_sim, SOO.u_p(1,:)*180/pi, 'LineWidth', 1)
             xlim([0 tsim])
             title('Aileron (deg)')
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
 
             subplot(2,2,4)
-            plot(SOO.t_sim, SOO.u_red(2,:)*180/pi, 'LineWidth', 1)
+            plot(SOO.t_sim, SOO.u_p(2,:)*180/pi, 'LineWidth', 1)
             xlim([0 tsim])
             title('Elevator (deg)')
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
@@ -1297,28 +1289,28 @@ classdef SimVFA < handle
                     norm_lambda_ada = zeros(steps, 1);
                     norm_psi1_ada   = zeros(steps, 1);
                     norm_psi2_ada   = zeros(steps, 1); 
-                    norm_psi202_ada = zeros(steps, 1);
+                    norm_psi21_ada = zeros(steps, 1);
 
                     for i=1:steps
                         norm_lambda_ada(i) = norm(SOO.lambda_ada(:,:,i));
                         norm_psi1_ada(i) = norm(SOO.psi1_ada(:,:,i));
                         norm_psi2_ada(i) = norm(SOO.psi2_ada(:,:,i));
-                        norm_psi202_ada(i) = norm(SOO.psi202_ada(:,:,i));
+                        norm_psi21_ada(i) = norm(SOO.psi21_ada(:,:,i));
                     end
 
                     norm_lambda_ada = norm_lambda_ada/norm_lambda_ada(end);
                     norm_psi1_ada   = norm_psi1_ada/norm_psi1_ada(end);
                     norm_psi2_ada   = norm_psi2_ada/norm_psi2_ada(end);
-                    norm_psi202_ada = norm_psi202_ada/norm_psi202_ada(end);
+                    norm_psi21_ada = norm_psi21_ada/norm_psi21_ada(end);
 
-                    norms = [norm_lambda_ada, norm_psi1_ada, norm_psi2_ada, norm_psi202_ada];
+                    norms = [norm_lambda_ada, norm_psi1_ada, norm_psi2_ada, norm_psi21_ada];
 
                     figure('Position',[100,100, 800, 400]);
                     plot(SOO.t_sim, norms, 'LineWidth', 1);
                     xlim([0 tsim]);
                     grid on;
                     title('Normalized Learned Parameters')
-                    h=legend('$\|\Lambda\|$', '$\|\Psi_1\|$', '$\|\Psi_2\|$', '$\|\Psi_{202}^1\|$');
+                    h=legend('$\|\Lambda\|$', '$\|\Psi_1\|$', '$\|\Psi_2\|$', '$\|\psi_{2}^1\|$');
                     set(h,'fontsize',vfa.pltOpt.legfontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname,'Interpreter','Latex','Location','NorthEast')
                     set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
                 end

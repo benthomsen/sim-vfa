@@ -48,6 +48,9 @@
 % Reg. Outputs (z): Dihedral [deg], Vertical Accel. [fps^2]
 % 
 % Inputs (u):       Aileron [deg], Elevator [deg]
+% 
+% The use of this simulation requires the Control System Toolbox and also
+% Simulink Control Design
 
 clear; clc;
 
