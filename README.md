@@ -3,7 +3,7 @@ Adaptive Control of Very-Flexible Aircraft in Simulink
 ![Rendering of 3-wing VFA model](vfa.png)
 
 ## Description
-This package is used to simulate the control of the longitudinal dynamics of a 3-wing very-flexible aircraft (VFA), using MATLAB and Simulink. The required functions for the simulation are encapuslated in the class "SimVFA". The script "RunVFASim" provides the necessary input to instantiate the simulation class, run a simulation, and plot some basic output.
+This package is used to simulate the control of the longitudinal dynamics of a 3-wing very-flexible aircraft (VFA), using MATLAB and Simulink. The required functions for the simulation are encapuslated in the class "SimVFA". The script "RunVFASim" provides the necessary input to instantiate the simulation class, run a simulation, and plot some basic output. The main choice to be made is to use a first-order actuator model and associated adaptive controller, or the more complex second-order actuator model and associated adaptive controller.
 
 The simulation uses a nonlinear VFA model as the plant, with controllers based on linearizations of the (nominal version of the) model at different dihedral angles. The adaptive controller is designed according to the method described in the paper "*Adaptive Output-Feedback Control for a Class of Multi-Input Multi-Output Plants with Arbitrary Relative Degree*" by Zheng (Max) Qu et al. These simulation files originate with Max's work, but have been continued by Ben Thomsen and other lab members since Max's graduation.
 
@@ -12,7 +12,7 @@ The main steps of the simulation process are:
 2. Introduce uncertainties and actuator dynamics
 3. For each trim point:
     1. Augment linearized system with actuator dynamics and integral error for command tracking
-    2. Add ficticious inputs to "square-up" the system - to provide SPR properties necessary for adaptive control design
+    2. Add ficticious inputs to "square-up" the system - to provide strictly-positive real (SPR) properties necessary for adaptive control design
     3. Compute baseline LQR feedback matrix (K), CRM feedback matrix (L), along with ouptut-mixing matrix (S) and transformed coordinates according to method in paper
 4. Set initial conditions, choose adaptation rates and related gains for simulation, define command trajectory, and run simulation
 
