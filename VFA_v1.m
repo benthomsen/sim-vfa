@@ -1,32 +1,19 @@
 function [sys,x0,str,ts]=VFA_v1(t,x,u,flag,data,x0)
 % Nonlinear dynamics of 3-wing VFA model
+% Level-1 MATLAB S-function
+% 
+% See "Modeling for Control of Very Flexible Aircraft", Gibson et al.
+% (https://doi.org/10.2514/6.2011-6202) for description
 
-    switch flag
-
-        %%%%%%%%%%%%%%%%%%
-        % Initialization %
-        %%%%%%%%%%%%%%%%%%
+    switch flag % flag for MATLAB S-function 
         case 0
             [sys,x0,str,ts] = mdlInitializeSizes(x0);
-
-            %%%%%%%%%%%%%%%
-            % Derivatives %
-            %%%%%%%%%%%%%%%
         case 1
             sys = mdlDerivatives(t,x,u,data);
-
-            %%%%%%%%%%%%%%%%%%%%%%%%
-            % Update and Terminate %
-            %%%%%%%%%%%%%%%%%%%%%%%%
         case {2,9}
-            sys = []; % do nothing
-
-            %%%%%%%%%%
-            % Output %
-            %%%%%%%%%%
+            sys = [];
         case 3
             sys = mdlOutputs(t,x,u);
-
         otherwise
             error(['unhandled flag = ',num2str(flag)]);
     end
@@ -57,26 +44,27 @@ end
 function sys = mdlDerivatives(~,x,u,data) %(t,x,u)
 % Compute derivatives for continuous states.
 
-    V=x(1);
-    alpha=x(2);
-    h=x(3);
-    theta=x(4);
-    q=x(5);
-    eta=x(6);
-    etadot=x(7);
+    V=x(1);     % velocity (ft/s)
+    alpha=x(2); % angle of attack (rad)
+    h=x(3);     % altitude (ft)
+    theta=x(4); % pitch angle (rad)
+    q=x(5);     % pitch rate (rad/s)
+    eta=x(6);   % dihedral angle (rad)
+    etadot=x(7);% dihedral rate (rad/s)
 
-    thrust=u(1);
-    delta2=u(2);
-    delta1=u(3);
-    delta3=delta1;
-    deltat2=u(4);
-    deltat1=u(5);
+    thrust=u(1);  % thrust
+    delta2=u(2);  % center aileron (rad)
+    delta1=u(3);  % outer aileron (rad)
+    deltat2=u(4); % center elevator (rad)
+    deltat1=u(5); % outer elevator (rad)
+    % winds:
     V2dis_X=u(6);
     V2dis_Z=u(7);
     V3dis_X=u(8);
     V3dis_Z=u(9);
 
-    deltat3=deltat1;
+    delta3=delta1;   % outer aileron
+    deltat3=deltat1; % outer elevator
     gamma=theta-alpha;
 
     %% Density at altitude
@@ -88,39 +76,36 @@ function sys = mdlDerivatives(~,x,u,data) %(t,x,u)
     data_struct.y = data(3);
     data_struct.z = data(4);
     
-    g=32.2;
-    weight1wing=data_struct.w; %500 lbs
-    mstar=weight1wing/g; %slugs
-    m=3*mstar;
-    ixxstar=mstar*data_struct.x;%534;
+    g = 32.2;
+    weight1wing = data_struct.w; % weight of one wing panel (lbs)
+    mstar = weight1wing/g;       % mass of one wing panel (slugs)
+    m = 3*mstar;                 % total vehicle mass (slugs)
+    ixxstar = mstar*data_struct.x; % (slugs ft^2)
+    iyystar = mstar*data_struct.y; % (slugs ft^2)
+    izzstar = mstar*data_struct.z; % (slugs ft^2)
 
-    iyystar=mstar*data_struct.y;%3.58;
-    izzstar=mstar*data_struct.z;%537;
+    s = 80; % span of a single wing section (ft)
+    c = 8;  % chord length of wing (ft)
 
-    s=80;
-    c=8;
+    stail = 20; % span of a single tail section (ft)
+    ctail = 2;  % chord length of tail (ft)
 
-    stail=20;
-    ctail=2;
+    booml = 6+30; % boom length (ft)
 
-    booml=6+30;
+    rhobar = 0.5*rho*V^2; % dynamic pressure
 
-    rhobar=0.5*rho*V^2;
+    areastar = s*c; % area of single wing section (ft^2)
 
-    areastar=s*c;
+    kapd = 0.07;
 
-    kapd=0.07; %fix 0.007
+    clalpha = 2*pi; % C_L_alpha
+    cld = 2; % C_L_delta
+    cmdelta = -0.25;
+    cma = 0;
+    cm0 = 0.025;
+    cd0 = 0.007;
 
-    clalpha=2*pi;%3.15; %fix
-
-    cld=2; %fix was 2...
-
-    cmdelta=-0.25; %-0.25 fix was -0.85
-    cma=0;%0.17%-0.17;
-    cm0=0.025;%0.025
-    cd0=0.007;%0.007
-
-    beta=0;
+    beta = 0;
 
     %% Wind force calculations
     V2dis_xyz= roty(theta)*[V2dis_X 0 V2dis_Z]';
@@ -207,29 +192,18 @@ function sys = mdlDerivatives(~,x,u,data) %(t,x,u)
     moment2=rhobar2*c*areastar*(cm0+cmdelta*delta2+cma*alpha2)+booml*pt2(3);
     moment3=rhobar3*c*areastar*(cm0+cmdelta*delta3+cma*alpha3)+booml*pt3(3);
 
-    %moment=moment2+moment1*cos(eta)+moment3*cos(eta)+ ...
-    %lift2*l2*sin(alpha)-lift1*cos(eta)*l1*sin(alpha)-lift3*cos(eta)*l3*sin(alpha)+...
-    %drag2*l2*cos(alpha)-drag1*l1*cos(alpha)-drag3*l3*cos(alpha)%+...
-    %^2+thrust/3*sin(eta)*s/3-2*(thrust/3)*(s/2*sin(eta)-s/3*sin(eta))
-
     moment=moment1+moment2+moment3-l1*p1(1)+l2*p2(1)-l3*p3(1);
 
     flapmom=-s/2*([0 0 1]*w2b(alpha3,beta3)*(w3+wt3)+mstar*g*cos(eta)*cos(theta))-70^2*eta-2*sqrt(10^10)*0.707*etadot;
-    %fix the gravty term here.... it is wrong wrong wrong....
 
-    % flapmom=-s/2*([0 0 1]*w2b(alpha3,beta3)*(w3+wt3)+mstar*g*cos(eta)*cos(theta));
-    %fix the gravty term here.... it is wrong wrong wrong....
-
-
-    %10^2 works really well 100^2 as well 10^11 for damping
     Vdot = (thrust*cos(alpha)-drag)/m-g*sin(gamma);
 
     alphadot=-(thrust*sin(alpha)+lift)/(m*V)+q+g*cos(gamma)/V;
-    % alphadot=-(thrust*sin(alpha)+lift)/(m*V)+q+cos(gamma/V);
 
     hdot=V*sin(gamma);
 
     thetadot=q;
+    
     c1=3*iyystar;
     c2=2*izzstar-2*iyystar+mstar*s^2/6;
     qdot=(moment-2*c2*sin(eta)*cos(eta)*etadot*q)/(c1+c2*sin(eta)^2);
@@ -237,7 +211,6 @@ function sys = mdlDerivatives(~,x,u,data) %(t,x,u)
     d1=s/2*mstar*((Vdot*sin(alpha)+V*cos(alpha)*alphadot)*cos(eta)-V*sin(alpha)*sin(eta)*etadot-2*s/3*cos(eta)*sin(eta)*etadot^2);
     d2=(iyystar-izzstar-mstar*s^2/12)*sin(eta)*cos(eta)*q^2-s/2*mstar*cos(eta)*V*cos(alpha)*q;
     d3=ixxstar+mstar*(s^2/4+s^2/6*cos(eta^2));
-
     etadotdot=(flapmom+d1-d2)/d3;
 
     sys=[Vdot alphadot hdot thetadot qdot etadot etadotdot]';

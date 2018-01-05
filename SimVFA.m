@@ -207,7 +207,7 @@ classdef SimVFA < handle
         function setTrimOpts(vfa)
         % set options for trimming nonlinear VFA model
             % data: [w; x; y; z] (used for inertial properties of VFA)
-            vfa.trimPts.data = [300; 30; 20/10; 18];
+            vfa.trimPts.data = [300; 30; 2; 18];
             vfa.trimPts.Vinitial = 30;     % airspeed (ft/s)
             vfa.trimPts.hinitial = 40000;  % altitude (ft)
             vfa.trimPts.alphainitial = 7.5*pi/180; % angle of attack (rad)
@@ -233,9 +233,10 @@ classdef SimVFA < handle
             if loadTrim
             	vfa.trimPts = load(saveFile);                
             else
-                % 7 states: V, alpha, h, theta, q, eta, etadot
-                % 9 inputs: thrust, delta2, delta1, deltat2, deltat1, V2dis_X, ...
-                %           V2dis_Z, V3dis_X, V3dis_Z
+                % 7 states: V (ft/s), alpha (rad), h (ft), theta (rad), 
+                %           q (rad/s), eta (rad), etadot (rad/s)
+                % 9 inputs: thrust, center aileron, outer aileron, center 
+                %           elevator, outer elevator, [4 wind inputs]
                 
                 TP = vfa.trimPts; % just for shorthand - will save struct at end of function
                 

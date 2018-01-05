@@ -1,4 +1,5 @@
-% Object-oriented approach to running VFA simulation
+% Object-oriented approach to simulating the control of the longitudinal
+% dynamics of a very-flexible aircraft (VFA).
 % 
 % This script generates all the data required to run the simulations
 % "VFA_ActOrder1.slx" and "VFA_ActOrder2.slx", which are
@@ -51,6 +52,22 @@
 % 
 % The use of this simulation requires the Control System Toolbox and also
 % Simulink Control Design
+% 
+% Relevant references are:
+%       "Adaptive Output-Feedback Control for a Class of Multi-Input
+%           Multi-Output Plants with Arbitrary Relative Degree"
+%       
+%       "Adaptive Output-Feedback Control and Applications to Very Flexible
+%           Aircraft" (http://hdl.handle.net/1721.1/104223)
+%
+%       "Modeling for Control of Very Flexible Aircraft"
+%           (https://doi.org/10.2514/6.2011-6202)
+% 
+%       "Squaring-Up Method in the Presence of Transmission Zeros"
+%           (https://arxiv.org/abs/1310.1439v2)
+% 
+%       "Robust and Adaptive Control - with Aerospace Applications"
+%           (https://doi.org/10.1007/978-1-4471-4396-3)
 
 clear; clc;
 
@@ -58,7 +75,6 @@ opt.dataPath   = ['data', filesep]; % where to look for/store .mat files
                                     % (relative to working directory)
 opt.adaFlag    = true;              % use adaptive control?
 opt.uncertFlag = true;              % uncertainty in dynamics?
-opt.actMode    = 'Slow';            % actuator speeds
 opt.actOrder   = 2;                 % order of actuator dynamics (1 or 2)
 opt.reTrim     = true;              % trim, linearize, recompute controller
 
