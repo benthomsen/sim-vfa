@@ -20,7 +20,7 @@
 %       states are not changing) and compute linearized state-space 
 %       representation
 %   2. Introduce uncertainties and actuator dynamics
-%   3. For each trim point (see table_generation_script.m):
+%   3. For each trim point:
 %       a. Augment linearized system with actuator dynamics and integral
 %           error for command tracking
 %       b. Add ficticious inputs to "square-up" the system - to provide
@@ -31,24 +31,24 @@
 %   4. Set initial conditions, choose adaptation rates and related gains
 %       for simulation, define command trajectory, and run simulation
 % 
-% With first-order actuator model ("Relative-degree 2"):
-% States (x): Airspeed [fps], AOA [deg], Pitch Angle [deg], Pitch Rate [deg/s], 
-%             Dihedral [deg], Dihedral Rate [deg/s], Aileron [deg], 
-%             Elevator [deg], Dihedral Int Error [ft], Vert Accel Int Error [fps]
+% With first-order actuator model ("Relative-degree 2"): 
+% States (x): Airspeed, Angle of Attack, Pitch Angle, Pitch Rate, Dihedral,
+%             Dihedral Rate, Outer Aileron Deflection, Center Elevator 
+%             Deflection, Dihedral Integral Error, Vert Accel Integral Error
 %
 % With second-order actuator model ("Relative-degree 3"):
-% States (x): Airspeed [fps], AOA [deg], Pitch Angle [deg], Pitch Rate [deg/s], 
-%             Dihedral [deg], Dihedral Rate [deg/s], Aileron [deg], 
-%             Elevator [deg], Aileron Rate [deg/s], Elevator Rate [lbs/s],
-%             Dihedral Int Error [ft], Vert Accel Int Error [fps]
+% States (x): Airspeed, Angle of Attack, Pitch Angle, Pitch Rate, Dihedral, 
+%             Dihedral Rate, Outer Aileron Deflection, Center Elevator 
+%             Deflection, Outer Aileron Rate, Center Elevator Rate, 
+%             Dihedral Integral Error, Vert Accel Integral Error
 % 
-% Outputs (y):      Pitch Rate [deg/s], Dihedral Integral Error [deg.s], 
-%                   Vertical Accel Integral Error [fps]
+% Outputs (y):      Pitch Rate, Dihedral Integral Error, 
+%                   Vertical Accel Integral Error
 %
 % Goal is for outputs z to track command r (some notation uses z_cmd)
-% Reg. Outputs (z): Dihedral [deg], Vertical Accel. [fps^2]
+% Reg. Outputs (z): Dihedral Angle, Vertical Accel.
 % 
-% Inputs (u):       Aileron [deg], Elevator [deg]
+% Inputs (u):       Outer Aileron, Center Elevator
 % 
 % The use of this simulation requires the Control System Toolbox and also
 % Simulink Control Design
@@ -75,7 +75,7 @@ opt.dataPath   = ['data', filesep]; % where to look for/store .mat files
                                     % (relative to working directory)
 opt.adaFlag    = true;              % use adaptive control?
 opt.uncertFlag = true;              % uncertainty in dynamics?
-opt.actOrder   = 2;                 % order of actuator dynamics (1 or 2)
+opt.actOrder   = 1;                 % order of actuator dynamics (1 or 2)
 opt.reTrim     = true;              % trim, linearize, recompute controller
 
 vfa = SimVFA(opt);  % initialize and setup the simulation

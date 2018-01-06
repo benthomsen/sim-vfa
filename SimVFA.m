@@ -71,7 +71,7 @@ classdef SimVFA < handle
                 SO.actOrder = 1; % default to first-order actuators
             end
             
-            % actuator parameters
+            % actuator parameters for true dynamics (not nominal/control model)
             if (SO.actOrder == 2) % second-order actuator model
                 if SO.uncertFlag
                     % coefficients to scale uncertainty matrices by
@@ -111,7 +111,7 @@ classdef SimVFA < handle
                     elseif strfind(SO.actMode, 'Slow')
                         SO.eig_act1   = -0.5;
                         SO.eig_act2   = -0.5;
-                        SO.lambda_s   = 0.2;
+                        SO.lambda_s   = 0.1;
                     else
                         SO.eig_act1   = -1;
                         SO.eig_act2   = -1;
@@ -158,7 +158,7 @@ classdef SimVFA < handle
 
                 % for basic LQR
                 SO.rk = 50*eye(length(SO.i_input_sel));
-                SO.qk = diag([0.001,0.001,0.001,0.001,0.001,0.001,0.0001,0.0001,0.0001,0.0001,1,0.01]);
+                SO.qk = diag([0.001,0.001,0.001,0.001,0.001,0.001,0.0001,0.0001,0.0001,0.0001,3,0.01]);
 
                 % second order actuator dynamics (nominal)
                 SO.w_act    = 1;   % natural frequency
@@ -178,7 +178,7 @@ classdef SimVFA < handle
 
                 % for basic LQR
                 SO.rk = 50*eye(length(SO.i_input_sel));
-                SO.qk = diag([0.001,0.001,0.001,0.001,0.001,0.001,0.0001,0.0001,1,0.01]);
+                SO.qk = diag([0.001,0.001,0.001,0.001,0.001,0.001,0.0001,0.0001,3,0.01]);
 
                 % first order actuator dynamics (nominal)
                 SO.w_act    = 1;   % cutoff frequency
@@ -927,7 +927,7 @@ classdef SimVFA < handle
                 SO.Gamma.vl = 10000*eye(num_input);
                 SO.Gamma.p1 = 10*eye(num_state-2*num_input);
                 SO.Gamma.p2 = 10*eye(num_state-2*num_input);
-                SO.Gamma.p3 = 10*eye(num_state);
+                SO.Gamma.p3 = 30*eye(num_state);
                 SO.Gamma.p31 = 1000*eye(num_output_i);
                 SO.Gamma.p31xm = SO.Gamma.p31(1:num_input,1:num_input);
                 SO.Gamma.p32 = 1000*eye(num_output_i);
@@ -949,7 +949,7 @@ classdef SimVFA < handle
 
                 SO.xm_0 = zeros(num_state_i,1);
 
-                % actuator dynamics
+                % actuator dynamics (real dynamics, not nominal)
                 SO.Aact = [zeros(num_input), eye(num_input);
                         -SO.w_act_a^2*eye(num_input), -2*SO.w_act_a*SO.zeta_act_a*eye(num_input)];
                 SO.Bact = [zeros(num_input);SO.w_act_a^2*eye(num_input)];
@@ -1094,7 +1094,7 @@ classdef SimVFA < handle
 
                 SO.xm_0 = zeros(num_state_i,1);
 
-                % actuator dynamics
+                % actuator dynamics (real dynamics, not nominal)
                 SO.Aact = diag([SO.eig_act1,SO.eig_act2]);
                 SO.Bact = diag([-SO.eig_act1,-SO.eig_act2]);
                 SO.Bact_x = Asim(num_state-num_input+1:num_state,1:num_state-num_input);
