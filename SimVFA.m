@@ -192,12 +192,13 @@ classdef SimVFA < handle
             SO.eta_nom = 10; % select dihedral angle (deg) [== ind-1] from linearized tables
 
             % commands
-            r_step = [-0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5];
-            r_step_scaled = [-2*pi/180; 2] * r_step;
+            r_step_eta = pi/180 * [1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1];
+            r_step_Az  = [-1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1];
+            r_step_scaled = [r_step_eta; r_step_Az];
 
             % simulation times for command steps
             t_step = 70;
-            SO.tsim = t_step*(length(r_step)-1)+1;
+            SO.tsim = t_step*(length(r_step_scaled)-1)+1;
             r_timeseries = timeseries(r_step_scaled, 1:t_step:SO.tsim);
             SO.r_timeseries = setinterpmethod(r_timeseries,'zoh');
             
