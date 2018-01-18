@@ -14,16 +14,16 @@ classdef SimVFA < handle
             vfa.setTrimOpts();   % set params for trimming routine
             vfa.setPlotOpts();   % set basic plotting options
             
-            if (opt.actOrder == 2) % second-order actuator model
-                vfa.simInObj = Simulink.SimulationInput('VFA_ActOrder2');
-            else % first-order actuator model
-                vfa.simInObj = Simulink.SimulationInput('VFA_ActOrder1');
+            if (vfa.simOpt.mActOrder == 2) % second-order actuator model for control design
+                vfa.simInObj = Simulink.SimulationInput('VFA_ActModel2');
+            else % first-order actuator model for control design
+                vfa.simInObj = Simulink.SimulationInput('VFA_ActModel1');
             end
             
             % trim aircraft
-            vfa.trimAC(~opt.reTrim, opt.reTrim, false);   
+            vfa.trimAC(~vfa.simOpt.reTrim, vfa.simOpt.reTrim, false);   
             % compute system and controller matrices at each linearization
-            vfa.genLookupTables(~opt.reTrim, opt.reTrim); 
+            vfa.genLookupTables(~vfa.simOpt.reTrim, vfa.simOpt.reTrim); 
             % compute everything required for sim at initial dihedral
             vfa.genController();
             % put required variables in a Simulink input object
@@ -57,22 +57,46 @@ classdef SimVFA < handle
                 SO.uncertFlag = true; % default to uncertainty on
             end
             
+            % flag for recomputing trim and linearization
+            if (isfield(opt, 'reTrim') && ~isempty(opt.adaFlag))
+                SO.reTrim = logical(opt.reTrim);
+            else
+                SO.reTrim = true; % default to trim/linearization on
+            end
+            
             % specification for actuator mode (slow/fast/nominal)
             if (isfield(opt, 'actMode') && ~isempty(opt.actMode))
-                SO.actMode = opt.actMode;
+                if (strfind(opt.actMode, 'Fast') || strfind(opt.actMode, 'fast'))
+                    SO.actMode = 'Fast';
+                elseif (strfind(opt.actMode, 'Slow') || strfind(opt.actMode, 'slow'))
+                    SO.actMode = 'Slow';
+                elseif (strfind(opt.actMode, 'Nom') || strfind(opt.actMode, 'nom'))
+                    SO.actMode = 'Nominal';
+                else
+                    SO.actMode = 'Slow'; % default to slow actuators
+                end
             else
                 SO.actMode = 'Slow'; % default to slow actuators
             end
 
-            % specification for order of actuator dynamics (first or second)
-            if (isfield(opt, 'actOrder') && (opt.actOrder == 1 || opt.actOrder == 2))
-                SO.actOrder = opt.actOrder;
+            % specification for order of modeled actuator dynamics (first
+            % or second) in control design
+            if (isfield(opt, 'mActOrder') && (opt.mActOrder == 1 || opt.mActOrder == 2))
+                SO.mActOrder = opt.mActOrder;
             else
-                SO.actOrder = 1; % default to first-order actuators
+                SO.mActOrder = 1; % default to first-order actuator model in control design
             end
             
-            % actuator parameters for true dynamics (not nominal/control model)
-            if (SO.actOrder == 2) % second-order actuator model
+            % specification for order of actuator dynamics in plant (true order)
+            if (isfield(opt, 'pActOrder') && (opt.pActOrder == 1 || opt.pActOrder == 2))
+                % don't allow plant with lower order than model
+                SO.pActOrder = max(opt.pActOrder, SO.mActOrder);
+            else
+                SO.pActOrder = max(1, SO.mActOrder); % default to first-order actuators
+            end
+            
+            % actuator parameters for true plant dynamics (not nominal/control model)
+            if (SO.mActOrder == 2) % second-order actuator model for control
                 if SO.uncertFlag
                     % coefficients to scale uncertainty matrices by
                     SO.Psi1_scale = 0.01;
@@ -99,7 +123,42 @@ classdef SimVFA < handle
                     SO.Psi2_scale = 0;
                     SO.Psi3_scale = 0;    
                 end
-            else % first-order actuator model
+            elseif (SO.pActOrder == 2) % first-order actuators for control, second-order in plant
+                if SO.uncertFlag
+                    % coefficients to scale uncertainty matrices by
+                    SO.Psi1_scale = 0.01;
+                    SO.Psi2_scale = 0;
+                    SO.Psi3_scale = 0.01;
+                    if strfind(SO.actMode, 'Fast')
+                        SO.eig_act1   = -1.5; % actuator 1 cutoff frequency
+                        SO.eig_act2   = -1.5; % actuator 2 cutoff frequency
+                        SO.w_act_a    = 1.5; % actuator natural frequency
+                        SO.zeta_act_a = 0.7; % actuator damping ratio
+                        SO.lambda_s   = 0.1;  % actuator effectiveness
+                    elseif strfind(SO.actMode, 'Slow')
+                        SO.eig_act1   = -0.5;
+                        SO.eig_act2   = -0.5;
+                        SO.w_act_a    = 0.5;
+                        SO.zeta_act_a = 2;
+                        SO.lambda_s   = 0.2;
+                    else
+                        SO.eig_act1   = -1;
+                        SO.eig_act2   = -1;
+                        SO.w_act_a    = 1;
+                        SO.zeta_act_a = 0.7;
+                        SO.lambda_s   = 0.2;
+                    end
+                else
+                    SO.eig_act1   = -1;
+                    SO.eig_act2   = -1;
+                    SO.w_act_a    = 1;
+                    SO.zeta_act_a = 0.7;
+                    SO.lambda_s   = 1;
+                    SO.Psi1_scale = 0;
+                    SO.Psi2_scale = 0;
+                    SO.Psi3_scale = 0;    
+                end
+            else
                 if SO.uncertFlag
                     % coefficients to scale uncertainty matrices by
                     SO.Psi1_scale = 0.03;
@@ -137,7 +196,7 @@ classdef SimVFA < handle
             % q0 used in P0 = lyap(NAM', q0*eye[]) to find Rinv
             SO.s0 = 0; % s0 used in A_eta = A+s0*eye[] to find Rinv
 
-            if (SO.actOrder == 2) % second-order actuator model
+            if (SO.mActOrder == 2) % second-order actuator model for control
                 SO.a22 = 1; SO.a21 = 2; SO.a20 = 1; % second-order filter coefficients
                 SO.d22 = 1; SO.d21 = 2; SO.d20 = 1; % derivative coefficieints
                 SO.d11 = 1; SO.d10 = 1; % derivative coefficients
@@ -163,7 +222,46 @@ classdef SimVFA < handle
                 % second order actuator dynamics (nominal)
                 SO.w_act    = 1;   % natural frequency
                 SO.zeta_act = 0.7; % damping
-            else % first-order actuator model
+                
+            elseif (SO.pActOrder == 2) % first-order model, second-order actuators
+                SO.a22 = 1; SO.a21 = 2; SO.a20 = 1; % second-order filter coefficients
+                SO.a11 = 0.1; SO.a10 = 1; % first-order filter coefficients
+
+%                 SO.d22 = 1; SO.d21 = 2; SO.d20 = 1; % derivative coefficieints
+%                 SO.d11 = 1; SO.d10 = 1; % derivative coefficients
+%                 SO.d00 = 1; % derivative coefficients
+
+                % parameter uncertainty matrices
+                SO.Psi1 = [0,10,0,0,-5,-10,0,0,0,0;
+                           0,-10,0,0,-10,50,0,0,0,0];
+                SO.Psi2 = [0,10,0,0,-5,-10,2.2,5,0.7,0;
+                           0,10,0,0,2,30,10,0.8,4,0];
+
+                % scale uncertainty matrices
+                SO.Psi1_s = SO.Psi1_scale * SO.Psi1;
+                SO.Psi2_s = SO.Psi2_scale * SO.Psi2;
+
+                % parameter uncertainty matrices
+                SO.Psi1_act = [0,10,0,0,-5,-10,0,0,0,0,0,0;
+                            0,-10,0,0,-10,50,0,0,0,0,0,0];
+                SO.Psi2_act = [0,10,0,0,-5,-10,0,0,0,0,0,0;
+                            0,-10,0,0,-10,50,0,0,0,0,0,0];
+                SO.Psi3_act = [0,10,0,0,-5,-10,2.2,5,0.7,0,0,0;
+                            0,10,0,0,2,30,10,0.8,4,0,0,0];
+
+                % scale uncertainty matrices
+                SO.Psi1_s_act = SO.Psi1_scale * SO.Psi1_act;
+                SO.Psi2_s_act = SO.Psi2_scale * SO.Psi2_act;
+                SO.Psi3_s_act = SO.Psi3_scale * SO.Psi3_act;
+
+                % for basic LQR
+                SO.rk = 50*eye(length(SO.i_input_sel));
+                SO.qk = diag([0.001,0.001,0.001,0.001,0.001,0.001,0.0001,0.0001,3,0.01]);
+
+                % second order actuator dynamics (nominal)
+                SO.w_act    = 1;   % natural frequency
+                SO.zeta_act = 0.7; % damping
+            else % first-order actuator model for control design
                 SO.a11 = 0.1; SO.a10 = 1; % first-order filter coefficients
 
                 % parameter uncertainty matrices
@@ -330,7 +428,7 @@ classdef SimVFA < handle
             SO = vfa.simOpt;
             TP = vfa.trimPts;
             
-            if (SO.actOrder == 2) % second-order actuator model
+            if (SO.mActOrder == 2) % second-order actuator model for control
                 SI = SI.setVariable('Aa', SO.Aa);
                 SI = SI.setVariable('Aact', SO.Aact);
                 SI = SI.setVariable('Acmd', SO.Acmd);
@@ -492,12 +590,12 @@ classdef SimVFA < handle
             TP = vfa.trimPts; % to be saved at end of function
             SO = vfa.simOpt;
             
-            saveFile = [SO.dataPath, 'VFA_linSys_actOrder', num2str(SO.actOrder, '%d')];
+            saveFile = [SO.dataPath, 'VFA_linSys_actModel', num2str(SO.mActOrder, '%d')];
 
             if loadTables
             	tables = load(saveFile);                
             else
-                if (SO.actOrder == 2) % second-order actuator model
+                if (SO.mActOrder == 2) % second-order actuator model for control
 
                     % Lookup tables for matrices vs. dihedral angle 
                     Aa_M = zeros([12,12,length(TP.etasweep)]);
@@ -794,7 +892,7 @@ classdef SimVFA < handle
             Cp = [eye(6), zeros(6,1)];          % all states measured in Cp except dihedral rate
             Dp = zeros(size(Cp,1), size(Bp,2)); % no direct feedthrough in plant
 
-            if (SO.actOrder == 2) % second-order actuator model
+            if (SO.mActOrder == 2) % second-order actuator model for control
                 % augment plant with (nominal) second-order actuator dynamics
                 % and remove altitude from states
                 A = [Ap(SO.i_state_sel,SO.i_state_sel), Bp(SO.i_state_sel,SO.i_input_sel), zeros(length(SO.i_state_sel),length(SO.i_input_sel));
@@ -957,6 +1055,179 @@ classdef SimVFA < handle
                 SO.Bact_x = Asim(num_state-2*num_input+1:num_state,1:num_state-2*num_input);
                 SO.Cact = [eye(num_input),zeros(num_input)];
                 SO.Cact_dot = [zeros(num_input),eye(num_input)];
+
+            elseif (SO.pActOrder == 2) % true second-orde actuators, first-order model
+                % augment plant with (nominal) first-order actuator dynamics
+                % and remove altitude from states
+                A = [Ap(SO.i_state_sel,SO.i_state_sel), Bp(SO.i_state_sel,SO.i_input_sel);
+                     zeros(length(SO.i_input_sel),length(SO.i_state_sel)), diag([SO.eig_act1, SO.eig_act2])];
+                B = [0*Bp(SO.i_state_sel,SO.i_input_sel);
+                     diag([-SO.eig_act1, -SO.eig_act2])]; % input matrix completely changed with actuator dynamics
+
+                % C selects only pitch rate (q) as measurement
+                C  = [Cp(SO.i_output,SO.i_state_sel), zeros(length(SO.i_output), length(SO.i_input_sel))];
+                % Cz selects dihedral angle and vertical acceleration as measurements              
+                Cz = [0,0,0,0,1,0,0,0;
+                      0,TP.Vinitial*Ap(2,2),0,0,0,0,TP.Vinitial*Bp(2,SO.i_input_sel)];
+
+                SO.Cz = Cz;
+                SO.Dz = zeros(2, length(SO.i_input_sel)); % no direct feedthrough
+
+                % VFA longitudinal states w/o altitude, and with first-order actuator dynamics
+                num_state  = length(A); 
+                num_input  = size(B,2); % two inputs
+
+                % Augment plant with integral error (for two tracked states)
+                index_output = [1,2]; % outputs to track (from Cz)
+                index_cmd    = [2,3]; % commands used from VFA model
+
+                % augmented system is used in reference model and control in sim.
+                % the integral error states are appended after actuator dynamics.
+                % Am (not in paper) = Aa - Ba*K,   Bm = Baz,   Cm = Ca
+                Aa = [A,zeros(length(A),length(index_output));
+                      Cz,zeros(length(index_output))];           % "A" in paper
+                SO.Aa = Aa;
+                Ba = [B; zeros(length(index_output),num_input)]; % "B_3" in paper
+                SO.Ba = Ba;
+                SO.Baz = [0*B; -eye(num_input)]; % "B_z" in paper (reference model input for r)
+
+                % Ca selects pitch rate and integral errors as measurements
+                Ca  = [C, zeros(size(C,1),length(index_output));
+                       zeros(length(index_output),length(A)),eye(length(index_output))]; % "C" in paper
+                SO.Ca = Ca;
+                SO.Caz = [Cz, zeros(length(index_cmd))]; % Caz selects dihedral angle and vertical acceleration as measurements
+
+                Da  = zeros(size(Ca,1),size(Ba,2)); % no direct feedthrough
+
+                SimVFA.checkNegative(tzero(Aa,Ba,Ca,Da)); % check whether sys is min phase
+
+                % B1 takes the two desired input paths from Bp (w/o actuators),
+                % removes altitude as state, and augments states with actuator states
+                B1   = [Bp(SO.i_state_sel,SO.i_input_sel);
+                        zeros(length(SO.i_input_sel),length(SO.i_input_sel))];
+                Daz1 = -inv(diag([SO.eig_act1,SO.eig_act2]))*Cz*B;
+
+                % Ba[i] is relative degree i input path
+                Ba2  = SO.a11*Ba; % full relative-degree 2 input matrix
+                Ba1  = [B1; Daz1];
+
+                SimVFA.checkCtrbObsv(Aa,Ba,Ca);    % check that augmented system is ctrb and obsv
+                SimVFA.checkRelDeg(Aa,Ba,Ca,Da,2); % make sure uniform relative degree three
+
+                % Add fictitious inputs (squaring up)
+                % NOTE: hardcoded here as the squaring-up algorithm
+                % is several hundred lines of code itself
+                Ba_add = [-0.1034; -0.1827; -0.1118; 0; -1; -0.0484; 2.9825; -0.5705; 0; 0];
+                Ba_aug = [Ba, Ba_add];
+                Da_aug = [Da, [0,0,0]']; % no direct feedthrough
+
+                [nrel_aug, vrel_aug, ~] = SimVFA.checkRelDeg(Aa,Ba_aug,Ca,Da_aug,2);
+
+                % this shouldn't change anything for uniform relative degree
+                [vrel_aug, Perm_aug] = SimVFA.sortPerm(vrel_aug);
+                Ba_aug = (Perm_aug*Ba_aug')';
+
+                % Find input normal form of augmented square system
+                [A_temp, B_temp, C_temp, U_temp, ~, ~]...
+                        = SimVFA.findNormalForm(Aa',Ca',Ba_aug',vrel_aug,nrel_aug,1);
+                % make a new system from dual - the real input normal form
+                Uinv  = U_temp'; % eigs at origin in Aa moved to LHP
+                Atilt = A_temp'; % Atilt=U*A*Uinv
+                Btilt = C_temp'; % Btilt=U*B;
+                Ctilt = B_temp'; % Ctilt=C*Uinv;
+                Dtilt = zeros(size(Ctilt,1),size(Btilt,2));
+                clear A_temp B_temp C_temp U_temp;
+
+                % Coordinate transform for relative degree 1 input path through
+                Bi21 = SO.a11*Atilt*Btilt + SO.a10*Btilt;
+
+                % make sure transformed transformed squared-up system is minimum phase
+                test_MP = SimVFA.checkNegative(tzero(Atilt,Bi21,Ctilt,Dtilt)); 
+
+                num_state_i  = length(Atilt); % states in augmented system
+                num_output_i = size(Ctilt,1);
+                num_cmd = length(index_cmd);
+
+                if test_MP==1
+                    Rs = eye(num_output_i);
+
+                    % postcomp==1 gives unitary S (different than paper)
+                    [S,C_bar,~] = SimVFA.findPostComp(Bi21,Ctilt,Rs,SO.postcomp);
+
+                    % F is R^(-1) in paper
+                    [F,~] = SimVFA.pickFSPR(Atilt,Bi21,C_bar,SO.q0,SO.epsilon,SO.s0);
+                    Lis = Bi21*F*S;
+                    SO.L = Uinv*Lis; % used in sim -- transformed back into real coordinates
+                end
+
+                % Reference Model Setup
+                SO.Si1 = [eye(num_state-num_input),zeros(num_state-num_input,num_state_i-num_state+num_input)];
+                SO.Si2 = [eye(num_state),zeros(num_state,num_state_i-num_state)];
+
+                if SO.uncertFlag
+                    SO.Psi2_s(:,num_state+1:num_state_i) = zeros(num_input,num_cmd);
+                    SO.Psi1_s(:,num_state+1:num_state_i) = zeros(num_input,num_cmd);
+                    SO.Lambda_s = SO.lambda_s*eye(num_input); % actuator effectiveness matrix
+                else
+                    SO.Psi2_s = 0*SO.Psi2_s;
+                    SO.Psi1_s = 0*SO.Psi1_s;
+                    SO.Lambda_s = eye(num_input);
+                end
+
+                Asim = Aa + Ba2 * SO.Psi2_s + Ba1 * SO.Psi1_s; % do not introduce the uncertainty in Cp.
+                Asim(7:8,7:8) = diag([SO.eig_act1,SO.eig_act2]);
+                SO.Apsim = Ap;
+                SO.Apsim(SO.i_state_sel,SO.i_state_sel) = Asim(1:(num_state-num_input),1:(num_state-num_input));
+
+                % Simulation parameters
+                % tuner gains
+                SO.Gamma.l = 1000*eye(num_input);
+                SO.Gamma.p1 = 0.1*eye(num_state-num_input);
+                SO.Gamma.p2 = 0.1*eye(num_state);
+                SO.Gamma.p21 = 200*eye(num_output_i);
+
+                % intial conditions
+                SO.lambda_0 = eye(num_input);
+                SO.psi1_0 = zeros(num_state-num_input,num_input);
+                SO.psi2_0 = zeros(num_state,num_input);
+                SO.psi21_0 = zeros(num_output_i,num_output_i);
+
+                SO.xm_0 = zeros(num_state_i,1);
+
+                
+                % for second-order actuators with first-order model
+                % this is all here to calculate Asim used in Bact_x
+                % i.e. actuator coupling with nonlinear VFA model
+                act.A = [Ap(SO.i_state_sel,SO.i_state_sel), Bp(SO.i_state_sel,SO.i_input_sel), zeros(length(SO.i_state_sel),length(SO.i_input_sel));
+                     zeros(length(SO.i_input_sel),length(SO.i_state_sel)+length(SO.i_input_sel)), eye(length(SO.i_input_sel));
+                     zeros(length(SO.i_input_sel),length(SO.i_state_sel)), -SO.w_act^2*eye(length(SO.i_input_sel)), -2*SO.zeta_act*SO.w_act*eye(length(SO.i_input_sel))];
+                act.B = [0*Bp(SO.i_state_sel,SO.i_input_sel);
+                     zeros(length(SO.i_input_sel));
+                     SO.w_act^2*eye(length(SO.i_input_sel))]; % input matrix completely changed with actuator dynamics
+                act.Cz = [0,0,0,0,1,0,0,0,0,0;
+                      0,TP.Vinitial*Ap(2,2),0,0,0,0,TP.Vinitial*Bp(2,SO.i_input_sel),0,0];
+                act.D  = Dp(SO.i_output, SO.i_input_sel);     % no direct feedthrough
+                act.num_state  = length(act.A); 
+                act.num_input  = size(act.B,2); % two inputs
+                act.Aa = [act.A,zeros(length(act.A),length(index_output));
+                      act.Cz,zeros(length(index_output))];           % "A" in paper
+                act.Ba = [act.B; zeros(length(index_output),act.num_input)]; % "B_3" in paper
+                act.B1   = [Bp(SO.i_state_sel,SO.i_input_sel);
+                        zeros(2*length(SO.i_input_sel),length(SO.i_input_sel))];
+                act.Daz1 = [act.D; TP.Vinitial*Bp(2,SO.i_input_sel)]; % direct feedthrough
+                act.Ba3  = SO.a22*act.Ba; % full relative-degree 3 input matrix
+                act.Ba2  = act.Aa*act.Ba3*SO.a22 + 2*act.Ba3*SO.a21;
+                act.Ba1  = [act.B1; act.Daz1]; % == Aa^2*Ba3*SO.a22 + 0.7*Aa*Ba3*SO.a21 + Ba3 (why not eq.75 in paper?)
+                act.Asim = act.Aa + act.Ba3*SO.Psi3_s_act + act.Ba2*SO.Psi2_s_act + act.Ba1*SO.Psi1_s_act; % do not introduce the uncertainty in Cp.
+                act.Asim(7:10,7:10) = [zeros(2),eye(2); -SO.w_act_a^2*eye(2),-2*SO.zeta_act_a*SO.w_act_a*eye(2)];
+                
+                % actuator dynamics (real dynamics, not nominal)
+                SO.Aact = [zeros(act.num_input), eye(act.num_input);
+                        -SO.w_act_a^2*eye(act.num_input), -2*SO.w_act_a*SO.zeta_act_a*eye(act.num_input)];
+                SO.Bact = [zeros(act.num_input);SO.w_act_a^2*eye(act.num_input)];
+                SO.Bact_x = act.Asim(act.num_state-2*act.num_input+1:act.num_state,1:act.num_state-2*act.num_input);
+                SO.Cact = [eye(act.num_input),zeros(act.num_input)];
+
             else
                 % augment plant with (nominal) first-order actuator dynamics
                 % and remove altitude from states
@@ -1100,8 +1371,9 @@ classdef SimVFA < handle
                 SO.Bact = diag([-SO.eig_act1,-SO.eig_act2]);
                 SO.Bact_x = Asim(num_state-num_input+1:num_state,1:num_state-num_input);
                 SO.Cact = eye(num_input);
+
             end
-            
+                        
             % command filter
             SO.Acmd = [zeros(num_cmd),eye(num_cmd);
                     -SO.w_cmd^2*eye(num_cmd),-2*SO.w_cmd*SO.zeta_cmd*eye(num_cmd)];
@@ -1252,7 +1524,7 @@ classdef SimVFA < handle
             if (vfa.simOpt.adaFlag)
                 steps = length(SOO.t_sim);
 
-                if (vfa.simOpt.actOrder == 2) % second-order actuator dynamics
+                if (vfa.simOpt.mActOrder == 2) % second-order actuator dynamics for control
                     norm_lambda_ada = zeros(steps, 1);
                     norm_psi1_ada   = zeros(steps, 1);
                     norm_psi2_ada   = zeros(steps, 1); 
