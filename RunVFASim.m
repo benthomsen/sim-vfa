@@ -76,8 +76,8 @@ opt.dataPath   = ['data', filesep]; % where to look for/store .mat files
 opt.adaFlag    = true;              % use adaptive control?
 opt.uncertFlag = true;              % uncertainty in dynamics?
 opt.reTrim     = true;              % trim, linearize, recompute controller
-opt.pActOrder  = 2;                 % order of plant actuator dynamics (1 or 2)
-opt.mActOrder  = 2;                 % order of modeled actuator dynamics
+opt.pActOrder  = 1;                 % order of plant actuator dynamics (1 or 2)
+opt.mActOrder  = 1;                 % order of modeled actuator dynamics
                                     % (1 or 2) and <= pActOrder
 
 vfa = SimVFA(opt);  % initialize and setup the simulation

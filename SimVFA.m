@@ -197,7 +197,7 @@ classdef SimVFA < handle
             SO.s0 = 0; % s0 used in A_eta = A+s0*eye[] to find Rinv
 
             if (SO.mActOrder == 2) % second-order actuator model for control
-                SO.a22 = 1; SO.a21 = 2; SO.a20 = 1; % second-order filter coefficients
+                SO.a22 = 1; SO.a21 = 1; SO.a20 = 1; % second-order filter coefficients
                 SO.d22 = 1; SO.d21 = 2; SO.d20 = 1; % derivative coefficieints
                 SO.d11 = 1; SO.d10 = 1; % derivative coefficients
                 SO.d00 = 1; % derivative coefficients
@@ -224,12 +224,8 @@ classdef SimVFA < handle
                 SO.zeta_act = 0.7; % damping
                 
             elseif (SO.pActOrder == 2) % first-order model, second-order actuators
-                SO.a22 = 1; SO.a21 = 2; SO.a20 = 1; % second-order filter coefficients
+                SO.a22 = 1; SO.a21 = 1; SO.a20 = 1; % second-order filter coefficients
                 SO.a11 = 0.1; SO.a10 = 1; % first-order filter coefficients
-
-%                 SO.d22 = 1; SO.d21 = 2; SO.d20 = 1; % derivative coefficieints
-%                 SO.d11 = 1; SO.d10 = 1; % derivative coefficients
-%                 SO.d00 = 1; % derivative coefficients
 
                 % parameter uncertainty matrices
                 SO.Psi1 = [0,10,0,0,-5,-10,0,0,0,0;
@@ -447,7 +443,6 @@ classdef SimVFA < handle
                 SI = SI.setVariable('Ccmd', SO.Ccmd);
                 SI = SI.setVariable('Ccmd_dot', SO.Ccmd_dot);
                 SI = SI.setVariable('Cz', SO.Cz);
-                SI = SI.setVariable('Dz', SO.Dz);
                 SI = SI.setVariable('Gamma_l', SO.Gamma.l);
                 SI = SI.setVariable('Gamma_p1', SO.Gamma.p1);
                 SI = SI.setVariable('Gamma_p2', SO.Gamma.p2);
@@ -534,7 +529,6 @@ classdef SimVFA < handle
                 SI = SI.setVariable('Caz', SO.Caz);
                 SI = SI.setVariable('Ccmd', SO.Ccmd);
                 SI = SI.setVariable('Cz', SO.Cz);
-                SI = SI.setVariable('Dz', SO.Dz);
                 SI = SI.setVariable('Gamma_l', SO.Gamma.l);
                 SI = SI.setVariable('Gamma_p1', SO.Gamma.p1);
                 SI = SI.setVariable('Gamma_p2', SO.Gamma.p2);
@@ -634,14 +628,14 @@ classdef SimVFA < handle
                         Cz = [0,0,0,0,1,0,0,0,0,0;
                               0,TP.Vinitial*Ap(2,2),0,0,0,0,TP.Vinitial*Bp(2,SO.i_input_sel),0,0];
 
-                        num_input  = size(B,2);
+                        num_input = size(B,2);
 
                         % Augment plant with integral error (for two tracked states)
                         index_output = [1,2]; % outputs to track (from Cz)
 
                         % augmented system is used in reference model and control in sim.
                         % the integral error states are appended after actuator dynamics.
-                        % Am (not in paper) = Aa - Ba*K,   Bm = Baz,   Cm = Ca
+                        % Am = Aa - Ba*K,   Bm = Baz,   Cm = Ca
                         Aa = [A,zeros(length(A),length(index_output));
                               Cz,zeros(length(index_output))];           % "A" in paper
                         Ba = [B; zeros(length(index_output),num_input)]; % "B_3" in paper
@@ -655,7 +649,7 @@ classdef SimVFA < handle
                         SimVFA.checkNegative(tzero(Aa,Ba,Ca,Da)); % check whether sys is min phase
 
                         Ba3  = SO.a22*Ba; % full relative-degree 3 input matrix
-                        Ba2  = Aa*Ba3*SO.a22 + Ba3*SO.a21; % RD2 input path
+                        Ba2  = Aa*Ba*SO.a22 + Ba*SO.a21; % RD2 input path
 
                         SimVFA.checkCtrbObsv(Aa,Ba,Ca);    % check that augmented system is ctrb and obsv
                         SimVFA.checkRelDeg(Aa,Ba,Ca,Da,2); % make sure uniform relative degree three
@@ -673,7 +667,7 @@ classdef SimVFA < handle
                         Ba_aug = (Perm_aug*Ba_aug')';
 
                         Ba3_aug  = SO.a22*Ba_aug;
-                        Ba32_aug = Aa*Ba3_aug*SO.a22 + Ba3_aug*SO.a21;
+                        Ba32_aug = Aa*Ba_aug*SO.a22 + Ba_aug*SO.a21;
                         
                         % Find input normal form of augmented square system
                         [A_temp, B_temp, C_temp, U_temp, ~, ~]...
@@ -772,14 +766,14 @@ classdef SimVFA < handle
                         Cz = [0,0,0,0,1,0,0,0;
                               0,TP.Vinitial*Ap(2,2),0,0,0,0,TP.Vinitial*Bp(2,SO.i_input_sel)];
 
-                        num_input  = size(B,2);
+                        num_input = size(B,2);
 
                         % Augment plant with integral error (for two tracked states)
                         index_output = [1,2]; % outputs to track (from Cz)
 
                         % augmented system is used in reference model and control in sim.
                         % the integral error states are appended after actuator dynamics.
-                        % Am (not in paper) = Aa - Ba*K,   Bm = Baz,   Cm = Ca
+                        % Am = Aa - Ba*K,   Bm = Baz,   Cm = Ca
                         Aa = [A,zeros(length(A),length(index_output));
                               Cz,zeros(length(index_output))];           % "A" in paper
                         Ba = [B; zeros(length(index_output),num_input)]; % "B_3" in paper
@@ -909,12 +903,9 @@ classdef SimVFA < handle
                       0,TP.Vinitial*Ap(2,2),0,0,0,0,TP.Vinitial*Bp(2,SO.i_input_sel),0,0];
                 SO.Cz = Cz;
 
-                D  = Dp(SO.i_output, SO.i_input_sel);     % no direct feedthrough
-                SO.Dz = zeros(2, length(SO.i_input_sel)); % no direct feedthrough
-
                 % VFA longitudinal states w/o altitude, and with second-order actuator dynamics
-                num_state  = length(A); 
-                num_input  = size(B,2); % two inputs
+                num_state = length(A); 
+                num_input = size(B,2); % two inputs
 
                 % Augment plant with integral error (for two tracked states)
                 index_output = [1,2]; % outputs to track (from Cz)
@@ -922,7 +913,7 @@ classdef SimVFA < handle
 
                 % augmented system is used in reference model and control in sim.
                 % the integral error states are appended after actuator dynamics.
-                % Am (not in paper) = Aa - Ba*K,   Bm = Baz,   Cm = Ca
+                % Am = Aa - Ba*K,   Bm = Baz,   Cm = Ca
                 Aa = [A,zeros(length(A),length(index_output));
                       Cz,zeros(length(index_output))];           % "A" in paper
                 SO.Aa = Aa;
@@ -940,16 +931,10 @@ classdef SimVFA < handle
 
                 SimVFA.checkNegative(tzero(Aa,Ba,Ca,Da)); % check whether sys is min phase
 
-                % B1 takes the two desired input paths from Bp (w/o actuators),
-                % removes altitude as state, and augments states with actuator states
-                B1   = [Bp(SO.i_state_sel,SO.i_input_sel);
-                        zeros(2*length(SO.i_input_sel),length(SO.i_input_sel))];
-                Daz1 = [D; TP.Vinitial*Bp(2,SO.i_input_sel)]; % direct feedthrough
-
-                % Ba[i] is relative degree i input path
+                % Coordinate change: Ba[i] is relative degree i input path
                 Ba3  = SO.a22*Ba; % full relative-degree 3 input matrix
-                Ba2  = Aa*Ba3*SO.a22 + 2*Ba3*SO.a21;
-                Ba1  = [B1; Daz1]; % == Aa^2*Ba3*SO.a22 + 0.7*Aa*Ba3*SO.a21 + Ba3 (why not eq.75 in paper?)
+                Ba2  = Aa*Ba*SO.a22 + 2*Ba*SO.a21;
+                Ba1  = Aa^2*Ba*SO.a22 + Aa*Ba*SO.a21 + Ba*SO.a20;
 
                 SimVFA.checkCtrbObsv(Aa,Ba,Ca);    % check that augmented system is ctrb and obsv
                 SimVFA.checkRelDeg(Aa,Ba,Ca,Da,2); % make sure uniform relative degree three
@@ -1071,11 +1056,10 @@ classdef SimVFA < handle
                       0,TP.Vinitial*Ap(2,2),0,0,0,0,TP.Vinitial*Bp(2,SO.i_input_sel)];
 
                 SO.Cz = Cz;
-                SO.Dz = zeros(2, length(SO.i_input_sel)); % no direct feedthrough
 
                 % VFA longitudinal states w/o altitude, and with first-order actuator dynamics
-                num_state  = length(A); 
-                num_input  = size(B,2); % two inputs
+                num_state = length(A); 
+                num_input = size(B,2); % two inputs
 
                 % Augment plant with integral error (for two tracked states)
                 index_output = [1,2]; % outputs to track (from Cz)
@@ -1083,7 +1067,7 @@ classdef SimVFA < handle
 
                 % augmented system is used in reference model and control in sim.
                 % the integral error states are appended after actuator dynamics.
-                % Am (not in paper) = Aa - Ba*K,   Bm = Baz,   Cm = Ca
+                % Am = Aa - Ba*K,   Bm = Baz,   Cm = Ca
                 Aa = [A,zeros(length(A),length(index_output));
                       Cz,zeros(length(index_output))];           % "A" in paper
                 SO.Aa = Aa;
@@ -1107,9 +1091,10 @@ classdef SimVFA < handle
                         zeros(length(SO.i_input_sel),length(SO.i_input_sel))];
                 Daz1 = -inv(diag([SO.eig_act1,SO.eig_act2]))*Cz*B;
 
-                % Ba[i] is relative degree i input path
+                % Coordinate change: Ba[i] is relative degree i input path
                 Ba2  = SO.a11*Ba; % full relative-degree 2 input matrix
                 Ba1  = [B1; Daz1];
+%                 Ba1  = SO.a11*Aa*Ba + SO.a10*Ba;
 
                 SimVFA.checkCtrbObsv(Aa,Ba,Ca);    % check that augmented system is ctrb and obsv
                 SimVFA.checkRelDeg(Aa,Ba,Ca,Da,2); % make sure uniform relative degree three
@@ -1212,12 +1197,9 @@ classdef SimVFA < handle
                 act.Aa = [act.A,zeros(length(act.A),length(index_output));
                       act.Cz,zeros(length(index_output))];           % "A" in paper
                 act.Ba = [act.B; zeros(length(index_output),act.num_input)]; % "B_3" in paper
-                act.B1   = [Bp(SO.i_state_sel,SO.i_input_sel);
-                        zeros(2*length(SO.i_input_sel),length(SO.i_input_sel))];
-                act.Daz1 = [act.D; TP.Vinitial*Bp(2,SO.i_input_sel)]; % direct feedthrough
                 act.Ba3  = SO.a22*act.Ba; % full relative-degree 3 input matrix
-                act.Ba2  = act.Aa*act.Ba3*SO.a22 + 2*act.Ba3*SO.a21;
-                act.Ba1  = [act.B1; act.Daz1]; % == Aa^2*Ba3*SO.a22 + 0.7*Aa*Ba3*SO.a21 + Ba3 (why not eq.75 in paper?)
+                act.Ba2  = act.Aa*act.Ba*SO.a22 + 2*act.Ba*SO.a21;
+                act.Ba1  = act.Aa^2*act.Ba*SO.a22 + act.Aa*act.Ba*SO.a21 + act.Ba*SO.a20;
                 act.Asim = act.Aa + act.Ba3*SO.Psi3_s_act + act.Ba2*SO.Psi2_s_act + act.Ba1*SO.Psi1_s_act; % do not introduce the uncertainty in Cp.
                 act.Asim(7:10,7:10) = [zeros(2),eye(2); -SO.w_act_a^2*eye(2),-2*SO.zeta_act_a*SO.w_act_a*eye(2)];
                 
@@ -1243,11 +1225,10 @@ classdef SimVFA < handle
                       0,TP.Vinitial*Ap(2,2),0,0,0,0,TP.Vinitial*Bp(2,SO.i_input_sel)];
 
                 SO.Cz = Cz;
-                SO.Dz = zeros(2, length(SO.i_input_sel)); % no direct feedthrough
 
                 % VFA longitudinal states w/o altitude, and with first-order actuator dynamics
-                num_state  = length(A); 
-                num_input  = size(B,2); % two inputs
+                num_state = length(A); 
+                num_input = size(B,2); % two inputs
 
                 % Augment plant with integral error (for two tracked states)
                 index_output = [1,2]; % outputs to track (from Cz)
@@ -1255,7 +1236,7 @@ classdef SimVFA < handle
 
                 % augmented system is used in reference model and control in sim.
                 % the integral error states are appended after actuator dynamics.
-                % Am (not in paper) = Aa - Ba*K,   Bm = Baz,   Cm = Ca
+                % Am = Aa - Ba*K,   Bm = Baz,   Cm = Ca
                 Aa = [A,zeros(length(A),length(index_output));
                       Cz,zeros(length(index_output))];           % "A" in paper
                 SO.Aa = Aa;
@@ -1279,9 +1260,10 @@ classdef SimVFA < handle
                         zeros(length(SO.i_input_sel),length(SO.i_input_sel))];
                 Daz1 = -inv(diag([SO.eig_act1,SO.eig_act2]))*Cz*B;
 
-                % Ba[i] is relative degree i input path
+                % Coordinate change: Ba[i] is relative degree i input path
                 Ba2  = SO.a11*Ba; % full relative-degree 2 input matrix
                 Ba1  = [B1; Daz1];
+%                 Ba1  = SO.a11*Aa*Ba + SO.a10*Ba;
 
                 SimVFA.checkCtrbObsv(Aa,Ba,Ca);    % check that augmented system is ctrb and obsv
                 SimVFA.checkRelDeg(Aa,Ba,Ca,Da,2); % make sure uniform relative degree three
