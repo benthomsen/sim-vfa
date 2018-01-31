@@ -95,13 +95,16 @@ classdef SimVFA < handle
                 SO.pActOrder = max(1, SO.mActOrder); % default to first-order actuators
             end
             
+            % uncertainty in plant
+            Theta_p = [0.6, -4.52, 0, 0.05, 0.41, 1.48;
+                       0.1, 1.83, 0, -0.02, -0.35, -0.59]'; % from example in paper
+            
             % actuator parameters for true plant dynamics (not nominal/control model)
             if (SO.mActOrder == 2) % second-order actuator model for control
                 if SO.uncertFlag
                     % coefficients to scale uncertainty matrices by
-                    SO.Psi1_scale = 0.01;
-                    SO.Psi2_scale = 0;
-                    SO.Psi3_scale = 0.01;
+                    SO.Psi1_scale = 1;
+                    SO.Psi3_scale = 1;
                     if strfind(SO.actMode, 'Fast')
                         SO.w_act_a    = 1.5; % actuator natural frequency
                         SO.zeta_act_a = 0.7; % actuator damping ratio
@@ -120,65 +123,54 @@ classdef SimVFA < handle
                     SO.zeta_act_a = 0.7;
                     SO.lambda_s   = 1;
                     SO.Psi1_scale = 0;
-                    SO.Psi2_scale = 0;
                     SO.Psi3_scale = 0;    
                 end
             elseif (SO.pActOrder == 2) % first-order actuators for control, second-order in plant
                 if SO.uncertFlag
                     % coefficients to scale uncertainty matrices by
-                    SO.Psi1_scale = 0.01;
-                    SO.Psi2_scale = 0;
-                    SO.Psi3_scale = 0.01;
+                    SO.Psi1_scale = 1;
+                    SO.Psi3_scale = 1;
                     if strfind(SO.actMode, 'Fast')
-                        SO.eig_act1   = -1.5; % actuator 1 cutoff frequency
-                        SO.eig_act2   = -1.5; % actuator 2 cutoff frequency
+                        SO.eig_act    = -1.5; % actuator cutoff frequency
                         SO.w_act_a    = 1.5; % actuator natural frequency
                         SO.zeta_act_a = 0.7; % actuator damping ratio
                         SO.lambda_s   = 0.1;  % actuator effectiveness
                     elseif strfind(SO.actMode, 'Slow')
-                        SO.eig_act1   = -0.5;
-                        SO.eig_act2   = -0.5;
+                        SO.eig_act    = -0.5;
                         SO.w_act_a    = 0.5;
                         SO.zeta_act_a = 2;
                         SO.lambda_s   = 0.2;
                     else
-                        SO.eig_act1   = -1;
-                        SO.eig_act2   = -1;
+                        SO.eig_act    = -1;
                         SO.w_act_a    = 1;
                         SO.zeta_act_a = 0.7;
                         SO.lambda_s   = 0.2;
                     end
                 else
-                    SO.eig_act1   = -1;
-                    SO.eig_act2   = -1;
+                    SO.eig_act    = -1;
                     SO.w_act_a    = 1;
                     SO.zeta_act_a = 0.7;
                     SO.lambda_s   = 1;
                     SO.Psi1_scale = 0;
-                    SO.Psi2_scale = 0;
-                    SO.Psi3_scale = 0;    
+                    SO.Psi3_scale = 0;
                 end
             else
                 if SO.uncertFlag
                     % coefficients to scale uncertainty matrices by
-                    SO.Psi1_scale = 0.03;
-                    SO.Psi2_scale = 0.01;
+                    SO.Psi1_scale = 1;
+                    SO.Psi2_scale = 1;
                     if strfind(SO.actMode, 'Fast')
-                        SO.eig_act1   = -1.5; % actuator 1 cutoff frequency
-                        SO.eig_act2   = -1.5; % actuator 2 cutoff frequency
-                        SO.lambda_s   = 0.1;  % actuator effectiveness
+                        SO.eig_act  = -1.5; % actuator cutoff frequency
+                        SO.lambda_s = 0.1;  % actuator effectiveness
                     elseif strfind(SO.actMode, 'Slow')
-                        SO.eig_act1   = -0.5;
-                        SO.eig_act2   = -0.5;
-                        SO.lambda_s   = 0.1;
+                        SO.eig_act  = -0.5;
+                        SO.lambda_s = 0.1;
                     else
-                        SO.eig_act1   = -1;
-                        SO.eig_act2   = -1;
-                        SO.lambda_s   = 0.2;
+                        SO.eig_act  = -1;
+                        SO.lambda_s = 0.2;
                     end
                 else
-                    SO.eig_act1   = -1;
-                    SO.eig_act2   = -1;
+                    SO.eig_act    = -1;
                     SO.lambda_s   = 1;
                     SO.Psi1_scale = 0;
                     SO.Psi2_scale = 0;
@@ -202,80 +194,69 @@ classdef SimVFA < handle
                 SO.d11 = 1; SO.d10 = 1; % derivative coefficients
                 SO.d00 = 1; % derivative coefficients
 
+                % second order actuator dynamics (nominal)
+                SO.w_act    = 1;   % natural frequency
+                SO.zeta_act = 0.7; % damping
+              
+                % matrix form of nominal actuator params
+                SO.D_1 = (SO.w_act)^2 * eye(2);
+                SO.D_2 = (2*SO.zeta_act*SO.w_act) * eye(2);
+                
+                Theta_1 = ((SO.w_act_a)^2 - (SO.w_act)^2) * eye(2);
+                Theta_2 = 2*(SO.zeta_act_a*SO.w_act_a - SO.zeta_act*SO.w_act) * eye(2);
+                
                 % parameter uncertainty matrices
-                SO.Psi1 = [0,10,0,0,-5,-10,0,0,0,0,0,0;
-                        0,-10,0,0,-10,50,0,0,0,0,0,0];
-                SO.Psi2 = [0,10,0,0,-5,-10,0,0,0,0,0,0;
-                        0,-10,0,0,-10,50,0,0,0,0,0,0];
-                SO.Psi3 = [0,10,0,0,-5,-10,2.2,5,0.7,0,0,0;
-                        0,10,0,0,2,30,10,0.8,4,0,0,0];
-
-                % scale uncertainty matrices
-                SO.Psi1_s = SO.Psi1_scale * SO.Psi1;
-                SO.Psi2_s = SO.Psi2_scale * SO.Psi2;
-                SO.Psi3_s = SO.Psi3_scale * SO.Psi3;
+                SO.Psi1 = SO.Psi1_scale * ([Theta_p; zeros(6, 2)]'); % [\Theta_{p}^{*}; 0; 0]^{T}
+                SO.Psi3 = SO.Psi3_scale * (-inv(SO.D_1) * [zeros(6,2); Theta_1; Theta_2; zeros(2,2)]');
+                SO.Lambda_s = SO.lambda_s*eye(2); % actuator effectiveness matrix
 
                 % for basic LQR
                 SO.rk = 50*eye(length(SO.i_input_sel));
                 SO.qk = diag([0.001,0.001,0.001,0.001,0.001,0.001,0.0001,0.0001,0.0001,0.0001,3,0.01]);
 
-                % second order actuator dynamics (nominal)
-                SO.w_act    = 1;   % natural frequency
-                SO.zeta_act = 0.7; % damping
-                
             elseif (SO.pActOrder == 2) % first-order model, second-order actuators
                 SO.a22 = 1; SO.a21 = 1; SO.a20 = 1; % second-order filter coefficients
                 SO.a11 = 0.1; SO.a10 = 1; % first-order filter coefficients
 
-                % parameter uncertainty matrices
-                SO.Psi1 = [0,10,0,0,-5,-10,0,0,0,0;
-                           0,-10,0,0,-10,50,0,0,0,0];
-                SO.Psi2 = [0,10,0,0,-5,-10,2.2,5,0.7,0;
-                           0,10,0,0,2,30,10,0.8,4,0];
-
-                % scale uncertainty matrices
-                SO.Psi1_s = SO.Psi1_scale * SO.Psi1;
-                SO.Psi2_s = SO.Psi2_scale * SO.Psi2;
-
-                % parameter uncertainty matrices
-                SO.Psi1_act = [0,10,0,0,-5,-10,0,0,0,0,0,0;
-                            0,-10,0,0,-10,50,0,0,0,0,0,0];
-                SO.Psi2_act = [0,10,0,0,-5,-10,0,0,0,0,0,0;
-                            0,-10,0,0,-10,50,0,0,0,0,0,0];
-                SO.Psi3_act = [0,10,0,0,-5,-10,2.2,5,0.7,0,0,0;
-                            0,10,0,0,2,30,10,0.8,4,0,0,0];
-
-                % scale uncertainty matrices
-                SO.Psi1_s_act = SO.Psi1_scale * SO.Psi1_act;
-                SO.Psi2_s_act = SO.Psi2_scale * SO.Psi2_act;
-                SO.Psi3_s_act = SO.Psi3_scale * SO.Psi3_act;
-
-                % for basic LQR
-                SO.rk = 50*eye(length(SO.i_input_sel));
-                SO.qk = diag([0.001,0.001,0.001,0.001,0.001,0.001,0.0001,0.0001,3,0.01]);
-
                 % second order actuator dynamics (nominal)
                 SO.w_act    = 1;   % natural frequency
                 SO.zeta_act = 0.7; % damping
-            else % first-order actuator model for control design
-                SO.a11 = 0.1; SO.a10 = 1; % first-order filter coefficients
 
+                % matrix form of nominal actuator params
+                SO.D_1 = (SO.w_act)^2 * eye(2);
+                SO.D_2 = (2*SO.zeta_act*SO.w_act) * eye(2);
+
+                Theta_1 = ((SO.w_act_a)^2 - (SO.w_act)^2) * eye(2);
+                Theta_2 = 2*(SO.zeta_act_a*SO.w_act_a - SO.zeta_act*SO.w_act) * eye(2);
+                
                 % parameter uncertainty matrices
-                SO.Psi1 = [0,10,0,0,-5,-10,0,0,0,0;
-                           0,-10,0,0,-10,50,0,0,0,0];
-                SO.Psi2 = [0,10,0,0,-5,-10,2.2,5,0.7,0;
-                           0,10,0,0,2,30,10,0.8,4,0];
-
-                % scale uncertainty matrices
-                SO.Psi1_s = SO.Psi1_scale * SO.Psi1;
-                SO.Psi2_s = SO.Psi2_scale * SO.Psi2;
+                SO.Psi1_act = SO.Psi1_scale * ([Theta_p; zeros(6, 2)]'); % [\Theta_{p}^{*}; 0; 0]^{T}
+                SO.Psi3_act = SO.Psi3_scale * (-inv(SO.D_1) * [zeros(6,2); Theta_1; Theta_2; zeros(2,2)]');
+                SO.Lambda_s = SO.lambda_s*eye(2); % actuator effectiveness matrix
 
                 % for basic LQR
                 SO.rk = 50*eye(length(SO.i_input_sel));
                 SO.qk = diag([0.001,0.001,0.001,0.001,0.001,0.001,0.0001,0.0001,3,0.01]);
 
+            else % first-order actuator model for control design
+                SO.a11 = 0.1; SO.a10 = 1; % first-order filter coefficients
+
                 % first order actuator dynamics (nominal)
                 SO.w_act    = 1;   % cutoff frequency
+                
+                % matrix form of nominal actuator params
+                SO.D_1 = (SO.w_act) * eye(2);
+                
+                Theta_1 = (-SO.eig_act - SO.w_act) * eye(2);
+                
+                % parameter uncertainty matrices
+                SO.Psi1 = SO.Psi1_scale * ([Theta_p; zeros(4, 2)]'); % [\Theta_{p}^{*}; 0; 0]^{T}
+                SO.Psi2 = SO.Psi2_scale * (-inv(SO.D_1) * [zeros(6,2); Theta_1; zeros(2,2)]');
+                SO.Lambda_s = SO.lambda_s*eye(2); % actuator effectiveness matrix
+
+                % for basic LQR
+                SO.rk = 50*eye(length(SO.i_input_sel));
+                SO.qk = diag([0.001,0.001,0.001,0.001,0.001,0.001,0.0001,0.0001,3,0.01]);
             end
             
             % command filter coefficients
@@ -617,10 +598,10 @@ classdef SimVFA < handle
                         % and remove altitude from states
                         A = [Ap(SO.i_state_sel,SO.i_state_sel), Bp(SO.i_state_sel,SO.i_input_sel), zeros(length(SO.i_state_sel),length(SO.i_input_sel));
                              zeros(length(SO.i_input_sel),length(SO.i_state_sel)+length(SO.i_input_sel)), eye(length(SO.i_input_sel));
-                             zeros(length(SO.i_input_sel),length(SO.i_state_sel)), -SO.w_act^2*eye(length(SO.i_input_sel)), -2*SO.zeta_act*SO.w_act*eye(length(SO.i_input_sel))];
+                             zeros(length(SO.i_input_sel),length(SO.i_state_sel)), -SO.D_1, -SO.D_2];
                         B = [0*Bp(SO.i_state_sel,SO.i_input_sel);
                              zeros(length(SO.i_input_sel));
-                             SO.w_act^2*eye(length(SO.i_input_sel))];
+                             SO.D_1];
 
                         % C selects only pitch rate (q) as measurement
                         C  = [Cp(SO.i_output,SO.i_state_sel), zeros(length(SO.i_output), 2*length(SO.i_input_sel))];
@@ -648,6 +629,7 @@ classdef SimVFA < handle
 
                         SimVFA.checkNegative(tzero(Aa,Ba,Ca,Da)); % check whether sys is min phase
 
+                        % coordinate change
                         Ba3  = SO.a22*Ba; % full relative-degree 3 input matrix
                         Ba2  = Aa*Ba*SO.a22 + Ba*SO.a21; % RD2 input path
 
@@ -756,9 +738,9 @@ classdef SimVFA < handle
                         % augment plant with (nominal) first-order actuator dynamics
                         % and remove altitude from states
                         A = [Ap(SO.i_state_sel,SO.i_state_sel), Bp(SO.i_state_sel,SO.i_input_sel);
-                             zeros(length(SO.i_input_sel),length(SO.i_state_sel)), diag([SO.eig_act1, SO.eig_act2])];
+                             zeros(length(SO.i_input_sel),length(SO.i_state_sel)), -SO.D_1];
                         B = [0*Bp(SO.i_state_sel,SO.i_input_sel);
-                             diag([-SO.eig_act1, -SO.eig_act2])]; % input matrix completely changed with actuator dynamics
+                             SO.D_1]; % input matrix completely changed with actuator dynamics
 
                         % C selects only pitch rate (q) as measurement
                         C  = [Cp(SO.i_output,SO.i_state_sel), zeros(length(SO.i_output), length(SO.i_input_sel))];
@@ -785,7 +767,6 @@ classdef SimVFA < handle
                         Da  = zeros(size(Ca,1),size(Ba,2)); % no direct feedthrough
 
                         SimVFA.checkNegative(tzero(Aa,Ba,Ca,Da)); % check whether sys is min phase
-
                         SimVFA.checkCtrbObsv(Aa,Ba,Ca);    % check that augmented system is ctrb and obsv
                         SimVFA.checkRelDeg(Aa,Ba,Ca,Da,2); % make sure uniform relative degree three
 
@@ -891,10 +872,10 @@ classdef SimVFA < handle
                 % and remove altitude from states
                 A = [Ap(SO.i_state_sel,SO.i_state_sel), Bp(SO.i_state_sel,SO.i_input_sel), zeros(length(SO.i_state_sel),length(SO.i_input_sel));
                      zeros(length(SO.i_input_sel),length(SO.i_state_sel)+length(SO.i_input_sel)), eye(length(SO.i_input_sel));
-                     zeros(length(SO.i_input_sel),length(SO.i_state_sel)), -SO.w_act^2*eye(length(SO.i_input_sel)), -2*SO.zeta_act*SO.w_act*eye(length(SO.i_input_sel))];
+                     zeros(length(SO.i_input_sel),length(SO.i_state_sel)), -SO.D_1, -SO.D_2];
                 B = [0*Bp(SO.i_state_sel,SO.i_input_sel);
                      zeros(length(SO.i_input_sel));
-                     SO.w_act^2*eye(length(SO.i_input_sel))]; % input matrix completely changed with actuator dynamics
+                     SO.D_1]; % input matrix completely changed with actuator dynamics
 
                 % C selects only pitch rate (q) as measurement
                 C  = [Cp(SO.i_output,SO.i_state_sel), zeros(length(SO.i_output), 2*length(SO.i_input_sel))];
@@ -902,6 +883,7 @@ classdef SimVFA < handle
                 Cz = [0,0,0,0,1,0,0,0,0,0;
                       0,TP.Vinitial*Ap(2,2),0,0,0,0,TP.Vinitial*Bp(2,SO.i_input_sel),0,0];
                 SO.Cz = Cz;
+                D  = Dp(SO.i_output, SO.i_input_sel);     % no direct feedthrough
 
                 % VFA longitudinal states w/o altitude, and with second-order actuator dynamics
                 num_state = length(A); 
@@ -931,10 +913,10 @@ classdef SimVFA < handle
 
                 SimVFA.checkNegative(tzero(Aa,Ba,Ca,Da)); % check whether sys is min phase
 
-                % Coordinate change: Ba[i] is relative degree i input path
-                Ba3  = SO.a22*Ba; % full relative-degree 3 input matrix
-                Ba2  = Aa*Ba*SO.a22 + 2*Ba*SO.a21;
-                Ba1  = Aa^2*Ba*SO.a22 + Aa*Ba*SO.a21 + Ba*SO.a20;
+                % B_1 in paper
+                B1   = [Bp(SO.i_state_sel,SO.i_input_sel);
+                        zeros(2*length(SO.i_input_sel),length(SO.i_input_sel));
+                        D; TP.Vinitial*Bp(2,SO.i_input_sel)];
 
                 SimVFA.checkCtrbObsv(Aa,Ba,Ca);    % check that augmented system is ctrb and obsv
                 SimVFA.checkRelDeg(Aa,Ba,Ca,Da,2); % make sure uniform relative degree three
@@ -988,20 +970,7 @@ classdef SimVFA < handle
                 SO.Si1 = [eye(num_state-2*num_input),zeros(num_state-2*num_input,num_state_i-num_state+2*num_input)];
                 SO.Si3 = [eye(num_state),zeros(num_state,num_state_i-num_state)];
 
-                if SO.uncertFlag
-                    SO.Psi3_s(:,num_state+1:num_state_i) = zeros(num_input,num_cmd);
-                    SO.Psi2_s(:,num_state+1:num_state_i) = zeros(num_input,num_cmd);
-                    SO.Psi1_s(:,num_state+1:num_state_i) = zeros(num_input,num_cmd);
-                    SO.Lambda_s = SO.lambda_s*eye(num_input); % actuator effectiveness matrix
-                else
-                    SO.Psi3_s = 0*SO.Psi3_s;
-                    SO.Psi2_s = 0*SO.Psi2_s;
-                    SO.Psi1_s = 0*SO.Psi1_s;
-                    SO.Lambda_s = eye(num_input);
-                end
-
-                Asim = Aa + Ba3*SO.Psi3_s + Ba2*SO.Psi2_s + Ba1*SO.Psi1_s; % do not introduce the uncertainty in Cp.
-                Asim(7:10,7:10) = [zeros(2),eye(2); -SO.w_act_a^2*eye(2),-2*SO.zeta_act_a*SO.w_act_a*eye(2)];
+                Asim = Aa + Ba*SO.Psi3 + B1*SO.Psi1;
                 SO.Apsim = Ap;
                 SO.Apsim(SO.i_state_sel,SO.i_state_sel) = Asim(1:(num_state-2*num_input),1:(num_state-2*num_input));
 
@@ -1045,9 +1014,9 @@ classdef SimVFA < handle
                 % augment plant with (nominal) first-order actuator dynamics
                 % and remove altitude from states
                 A = [Ap(SO.i_state_sel,SO.i_state_sel), Bp(SO.i_state_sel,SO.i_input_sel);
-                     zeros(length(SO.i_input_sel),length(SO.i_state_sel)), diag([SO.eig_act1, SO.eig_act2])];
+                     zeros(length(SO.i_input_sel),length(SO.i_state_sel)), -SO.D_1];
                 B = [0*Bp(SO.i_state_sel,SO.i_input_sel);
-                     diag([-SO.eig_act1, -SO.eig_act2])]; % input matrix completely changed with actuator dynamics
+                     SO.D_1]; % input matrix completely changed with actuator dynamics
 
                 % C selects only pitch rate (q) as measurement
                 C  = [Cp(SO.i_output,SO.i_state_sel), zeros(length(SO.i_output), length(SO.i_input_sel))];
@@ -1084,18 +1053,6 @@ classdef SimVFA < handle
                 Da  = zeros(size(Ca,1),size(Ba,2)); % no direct feedthrough
 
                 SimVFA.checkNegative(tzero(Aa,Ba,Ca,Da)); % check whether sys is min phase
-
-                % B1 takes the two desired input paths from Bp (w/o actuators),
-                % removes altitude as state, and augments states with actuator states
-                B1   = [Bp(SO.i_state_sel,SO.i_input_sel);
-                        zeros(length(SO.i_input_sel),length(SO.i_input_sel))];
-                Daz1 = -inv(diag([SO.eig_act1,SO.eig_act2]))*Cz*B;
-
-                % Coordinate change: Ba[i] is relative degree i input path
-                Ba2  = SO.a11*Ba; % full relative-degree 2 input matrix
-                Ba1  = [B1; Daz1];
-%                 Ba1  = SO.a11*Aa*Ba + SO.a10*Ba;
-
                 SimVFA.checkCtrbObsv(Aa,Ba,Ca);    % check that augmented system is ctrb and obsv
                 SimVFA.checkRelDeg(Aa,Ba,Ca,Da,2); % make sure uniform relative degree three
 
@@ -1149,20 +1106,7 @@ classdef SimVFA < handle
                 SO.Si1 = [eye(num_state-num_input),zeros(num_state-num_input,num_state_i-num_state+num_input)];
                 SO.Si2 = [eye(num_state),zeros(num_state,num_state_i-num_state)];
 
-                if SO.uncertFlag
-                    SO.Psi2_s(:,num_state+1:num_state_i) = zeros(num_input,num_cmd);
-                    SO.Psi1_s(:,num_state+1:num_state_i) = zeros(num_input,num_cmd);
-                    SO.Lambda_s = SO.lambda_s*eye(num_input); % actuator effectiveness matrix
-                else
-                    SO.Psi2_s = 0*SO.Psi2_s;
-                    SO.Psi1_s = 0*SO.Psi1_s;
-                    SO.Lambda_s = eye(num_input);
-                end
-
-                Asim = Aa + Ba2 * SO.Psi2_s + Ba1 * SO.Psi1_s; % do not introduce the uncertainty in Cp.
-                Asim(7:8,7:8) = diag([SO.eig_act1,SO.eig_act2]);
-                SO.Apsim = Ap;
-                SO.Apsim(SO.i_state_sel,SO.i_state_sel) = Asim(1:(num_state-num_input),1:(num_state-num_input));
+                SO.Apsim = Ap; % only used in sim for size info
 
                 % Simulation parameters
                 % tuner gains
@@ -1185,10 +1129,10 @@ classdef SimVFA < handle
                 % i.e. actuator coupling with nonlinear VFA model
                 act.A = [Ap(SO.i_state_sel,SO.i_state_sel), Bp(SO.i_state_sel,SO.i_input_sel), zeros(length(SO.i_state_sel),length(SO.i_input_sel));
                      zeros(length(SO.i_input_sel),length(SO.i_state_sel)+length(SO.i_input_sel)), eye(length(SO.i_input_sel));
-                     zeros(length(SO.i_input_sel),length(SO.i_state_sel)), -SO.w_act^2*eye(length(SO.i_input_sel)), -2*SO.zeta_act*SO.w_act*eye(length(SO.i_input_sel))];
+                     zeros(length(SO.i_input_sel),length(SO.i_state_sel)), -SO.D_1, -SO.D_2];
                 act.B = [0*Bp(SO.i_state_sel,SO.i_input_sel);
                      zeros(length(SO.i_input_sel));
-                     SO.w_act^2*eye(length(SO.i_input_sel))]; % input matrix completely changed with actuator dynamics
+                     SO.D_1]; % input matrix completely changed with actuator dynamics
                 act.Cz = [0,0,0,0,1,0,0,0,0,0;
                       0,TP.Vinitial*Ap(2,2),0,0,0,0,TP.Vinitial*Bp(2,SO.i_input_sel),0,0];
                 act.D  = Dp(SO.i_output, SO.i_input_sel);     % no direct feedthrough
@@ -1197,12 +1141,11 @@ classdef SimVFA < handle
                 act.Aa = [act.A,zeros(length(act.A),length(index_output));
                       act.Cz,zeros(length(index_output))];           % "A" in paper
                 act.Ba = [act.B; zeros(length(index_output),act.num_input)]; % "B_3" in paper
-                act.Ba3  = SO.a22*act.Ba; % full relative-degree 3 input matrix
-                act.Ba2  = act.Aa*act.Ba*SO.a22 + 2*act.Ba*SO.a21;
-                act.Ba1  = act.Aa^2*act.Ba*SO.a22 + act.Aa*act.Ba*SO.a21 + act.Ba*SO.a20;
-                act.Asim = act.Aa + act.Ba3*SO.Psi3_s_act + act.Ba2*SO.Psi2_s_act + act.Ba1*SO.Psi1_s_act; % do not introduce the uncertainty in Cp.
-                act.Asim(7:10,7:10) = [zeros(2),eye(2); -SO.w_act_a^2*eye(2),-2*SO.zeta_act_a*SO.w_act_a*eye(2)];
-                
+                act.B1 = [Bp(SO.i_state_sel,SO.i_input_sel);
+                        zeros(2*length(SO.i_input_sel),length(SO.i_input_sel));
+                        act.D; TP.Vinitial*Bp(2,SO.i_input_sel)];
+                act.Asim = act.Aa + act.Ba*SO.Psi3_act + act.B1*SO.Psi1_act;
+
                 % actuator dynamics (real dynamics, not nominal)
                 SO.Aact = [zeros(act.num_input), eye(act.num_input);
                         -SO.w_act_a^2*eye(act.num_input), -2*SO.w_act_a*SO.zeta_act_a*eye(act.num_input)];
@@ -1214,9 +1157,9 @@ classdef SimVFA < handle
                 % augment plant with (nominal) first-order actuator dynamics
                 % and remove altitude from states
                 A = [Ap(SO.i_state_sel,SO.i_state_sel), Bp(SO.i_state_sel,SO.i_input_sel);
-                     zeros(length(SO.i_input_sel),length(SO.i_state_sel)), diag([SO.eig_act1, SO.eig_act2])];
+                     zeros(length(SO.i_input_sel),length(SO.i_state_sel)), -SO.D_1];
                 B = [0*Bp(SO.i_state_sel,SO.i_input_sel);
-                     diag([-SO.eig_act1, -SO.eig_act2])]; % input matrix completely changed with actuator dynamics
+                     SO.D_1]; % input matrix completely changed with actuator dynamics
 
                 % C selects only pitch rate (q) as measurement
                 C  = [Cp(SO.i_output,SO.i_state_sel), zeros(length(SO.i_output), length(SO.i_input_sel))];
@@ -1257,13 +1200,8 @@ classdef SimVFA < handle
                 % B1 takes the two desired input paths from Bp (w/o actuators),
                 % removes altitude as state, and augments states with actuator states
                 B1   = [Bp(SO.i_state_sel,SO.i_input_sel);
-                        zeros(length(SO.i_input_sel),length(SO.i_input_sel))];
-                Daz1 = -inv(diag([SO.eig_act1,SO.eig_act2]))*Cz*B;
-
-                % Coordinate change: Ba[i] is relative degree i input path
-                Ba2  = SO.a11*Ba; % full relative-degree 2 input matrix
-                Ba1  = [B1; Daz1];
-%                 Ba1  = SO.a11*Aa*Ba + SO.a10*Ba;
+                        zeros(length(SO.i_input_sel),length(SO.i_input_sel));
+                        inv(SO.D_1)*Cz*B];
 
                 SimVFA.checkCtrbObsv(Aa,Ba,Ca);    % check that augmented system is ctrb and obsv
                 SimVFA.checkRelDeg(Aa,Ba,Ca,Da,2); % make sure uniform relative degree three
@@ -1318,18 +1256,7 @@ classdef SimVFA < handle
                 SO.Si1 = [eye(num_state-num_input),zeros(num_state-num_input,num_state_i-num_state+num_input)];
                 SO.Si2 = [eye(num_state),zeros(num_state,num_state_i-num_state)];
 
-                if SO.uncertFlag
-                    SO.Psi2_s(:,num_state+1:num_state_i) = zeros(num_input,num_cmd);
-                    SO.Psi1_s(:,num_state+1:num_state_i) = zeros(num_input,num_cmd);
-                    SO.Lambda_s = SO.lambda_s*eye(num_input); % actuator effectiveness matrix
-                else
-                    SO.Psi2_s = 0*SO.Psi2_s;
-                    SO.Psi1_s = 0*SO.Psi1_s;
-                    SO.Lambda_s = eye(num_input);
-                end
-
-                Asim = Aa + Ba2 * SO.Psi2_s + Ba1 * SO.Psi1_s; % do not introduce the uncertainty in Cp.
-                Asim(7:8,7:8) = diag([SO.eig_act1,SO.eig_act2]);
+                Asim = Aa + Ba * SO.Psi2 + B1 * SO.Psi1;
                 SO.Apsim = Ap;
                 SO.Apsim(SO.i_state_sel,SO.i_state_sel) = Asim(1:(num_state-num_input),1:(num_state-num_input));
 
@@ -1349,8 +1276,8 @@ classdef SimVFA < handle
                 SO.xm_0 = zeros(num_state_i,1);
 
                 % actuator dynamics (real dynamics, not nominal)
-                SO.Aact = diag([SO.eig_act1,SO.eig_act2]);
-                SO.Bact = diag([-SO.eig_act1,-SO.eig_act2]);
+                SO.Aact = SO.eig_act*eye(2);
+                SO.Bact = -SO.eig_act*eye(2);
                 SO.Bact_x = Asim(num_state-num_input+1:num_state,1:num_state-num_input);
                 SO.Cact = eye(num_input);
 
