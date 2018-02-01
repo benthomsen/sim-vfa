@@ -41,7 +41,7 @@ Goal is for outputs z to track command r (some notation uses z_cmd)
 The use of this simulation package requires the Control System Toolbox and Simulink Control Design
 
 ## References
-"*Adaptive Output-Feedback Control for a Class of Multi-Input Multi-Output Plants with Arbitrary Relative Degree*"
+"*Adaptive Control for a Class of Multi-Input Multi-Output Plants with Arbitrary Relative Degree*"
 
 "*Adaptive Output-Feedback Control and Applications to Very Flexible Aircraft*" 
 (http://hdl.handle.net/1721.1/104223)
