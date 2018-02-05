@@ -600,10 +600,6 @@ classdef SimVFA < handle
 
                         Da  = zeros(size(Ca,1),size(Ba,2)); % no direct feedthrough
 
-%                         SimVFA.checkNegative(tzero(Aa,Ba,Ca,Da)); % check whether sys is min phase
-%                         SimVFA.checkCtrbObsv(Aa,Ba,Ca);    % check that augmented system is ctrb and obsv
-%                         SimVFA.checkRelDeg(Aa,Ba,Ca,Da,2); % make sure uniform relative degree three
-
                         % coordinate change
                         Ba3  = SO.a22*Ba; % full relative-degree 3 input matrix
                         Ba2  = Aa*Ba*SO.a22 + Ba*SO.a21; % RD2 input path
@@ -731,15 +727,8 @@ classdef SimVFA < handle
                                zeros(length(index_output),length(A)),eye(length(index_output))]; % "C" in paper
                         Da  = zeros(size(Ca,1),size(Ba,2)); % no direct feedthrough
 
-%                         SimVFA.checkNegative(tzero(Aa,Ba,Ca,Da)); % check whether sys is min phase
-%                         SimVFA.checkCtrbObsv(Aa,Ba,Ca);    % check that augmented system is ctrb and obsv
-%                         SimVFA.checkRelDeg(Aa,Ba,Ca,Da,2); % make sure uniform relative degree three
-
                         % Add fictitious inputs (squaring up): 
-                        % NOTE: hardcoded here as the squaring-up algorithm
-                        % is several hundred lines of code itself
-                        Ba_add = [-0.1034; -0.1827; -0.1118; 0; -1; -0.0484; 2.9825; -0.5705; 0; 0];
-                        Ba_aug = [Ba, Ba_add];
+                        [Ba_aug, ~] = SimVFA.squareUpRelDeg2(Aa, Ba, Ca, 1, 50);
                         Da_aug = [Da, [0,0,0]']; % no direct feedthrough
 
                         [nrel_aug, vrel_aug, ~] = SimVFA.checkRelDeg(Aa,Ba_aug,Ca,Da_aug,2);
@@ -1006,10 +995,7 @@ classdef SimVFA < handle
                 SimVFA.checkRelDeg(Aa,Ba,Ca,Da,2); % make sure uniform relative degree three
 
                 % Add fictitious inputs (squaring up)
-                % NOTE: hardcoded here as the squaring-up algorithm
-                % is several hundred lines of code itself
-                Ba_add = [-0.1034; -0.1827; -0.1118; 0; -1; -0.0484; 2.9825; -0.5705; 0; 0];
-                Ba_aug = [Ba, Ba_add];
+                [Ba_aug, ~] = SimVFA.squareUpRelDeg2(Aa, Ba, Ca, 1, 50);
                 Da_aug = [Da, [0,0,0]']; % no direct feedthrough
 
                 [nrel_aug, vrel_aug, ~] = SimVFA.checkRelDeg(Aa,Ba_aug,Ca,Da_aug,2);
@@ -1145,10 +1131,7 @@ classdef SimVFA < handle
                         inv(SO.D_1)*Cz*B];
 
                 % Add fictitious inputs (squaring up)
-                % NOTE: hardcoded here as the squaring-up algorithm
-                % is several hundred lines of code itself
-                Ba_add = [-0.1034; -0.1827; -0.1118; 0; -1; -0.0484; 2.9825; -0.5705; 0; 0];
-                Ba_aug = [Ba, Ba_add];
+                [Ba_aug, ~] = SimVFA.squareUpRelDeg2(Aa, Ba, Ca, 1, 50);
                 Da_aug = [Da, [0,0,0]']; % no direct feedthrough
 
                 [nrel_aug, vrel_aug, ~] = SimVFA.checkRelDeg(Aa,Ba_aug,Ca,Da_aug,2);
@@ -1937,5 +1920,113 @@ classdef SimVFA < handle
             end
         end
         
+        function [B_fin, SU_zeros] = squareUpRelDeg2(A_orig, B_orig, C_orig, q0, r0, verbose)
+            % square up procedure for uniform relative degree 2 system to add
+            % ficticious inputs (i.e. augment B_orig)
+
+            if ~exist('verbose','var')
+                verbose = false;
+            end
+
+            % system transposed to follow procedure to augment C
+            A = A_orig';
+            B = C_orig';
+            C = B_orig';
+
+            n = length(A); m = size(B,2); p = size(C,1);
+            [At, Bt, Ct, T] = SimVFA.findSCB(A,B,C);
+
+            A21 = At(m+1:n,1:m);
+            A22 = At(m+1:n,m+1:n);
+
+            C11 = Ct(:,1:m);
+            C12 = Ct(:,m+1:n);
+
+            if (rank(A21)>=m && rank(C11)==0)
+                [Csq_aug, Ct1_aug, ~] = SimVFA.findSquareUpInner(A22,A21,C12,q0,r0,verbose);
+                Ct_aug = [Ct1_aug, Csq_aug];
+            else
+                error('Squaring-Up Error: Rank(A21) < m');
+            end
+
+            C_aug = Ct_aug * T;
+            C_aug(abs(C_aug)<1e-8) = 0;
+            SU_zeros = tzero(A,B,C_aug, zeros(size(Ct_aug,1),size(Bt,2)));
+
+            B_fin = C_aug';
+        end
+
+        function [At, Bt, Ct, T] = findSCB(A,B,C)
+            B_perp = (null(B'));
+            B_pinv = pinv(B);
+            T = [B_pinv;B_perp'];
+
+            At = T*A*inv(T);
+            Bt = T*B;
+            Ct = C*inv(T);
+        end
+
+        function [C_aug, D_aug, SU_zeros] = findSquareUpInner(A,B,C,q0,r0,verbose)
+
+            [At, Bt, Ct, T] = SimVFA.findSCB(A,B,C);
+
+            %using the full rank of Bt
+            n=length(At); m=size(Bt,2); p=size(Ct,1);
+
+            if rank(Bt) == size(Bt,2)
+                Bt_0 = sum(abs(Bt),2);
+                index_0 = find(abs(Bt_0)>1e-8);
+                n1 = length(index_0);
+            else
+                error('Squaring-Up Error: Simplified procedure requires B to have full rank');
+            end
+
+            n2 = n-n1;
+
+            A21 = At(n1+1:n1+n2,1:n1);
+            A22 = At(n1+1:n1+n2,n1+1:n1+n2);
+
+            C11 = Ct(:,1:n1);
+            C12 = Ct(:,n1+1:n1+n2);
+            C21 = (null(C11))';
+            C1 = [C11; C21];
+
+            C2tilt = [C12; zeros(m-p,n-m)];
+
+            A22tilt = A22-A21*inv(C1)*C2tilt;
+
+            B_pseudo = A21*inv(C1);
+            B_pseudo_2 = B_pseudo(:,n1-m+p+1:n1);
+
+            if(verbose); disp(strcat('Square up can place: ',num2str(length(A22tilt)),' zeros')); end
+
+            eig_A22tilt = eig(A22tilt);
+            Pos_A = eig_A22tilt(real(eig_A22tilt)>=0);
+            if isempty(Pos_A)
+                C2hat_p = zeros(size(B_pseudo_2,2),size(A22tilt,2));
+            else
+                if(verbose); disp('Using lQR to place t zeros'); end
+                Qtilt = q0*eye(length(A22tilt));
+                Rtilt = r0*eye(size(B_pseudo_2,2));
+                C2hat_p = lqr(A22tilt,B_pseudo_2,Qtilt,Rtilt);
+            end
+
+            C2hat = [zeros(p,n-m); C2hat_p];
+            C2 = C2tilt + C2hat;
+
+            Ct_aug = [C1, C2];
+            C_aug = Ct_aug*T;
+            C_aug(abs(C_aug)<1e-8) = 0; % round numerical noise to 0
+            D_aug = zeros(m);
+
+            SU_zeros = tzero(A,B,C_aug,D_aug);
+            if (verbose)
+                if ~isempty(SU_zeros)
+                    disp(strcat('There are tzeros in the augmented system. They are: ',num2str(SU_zeros)));
+                else
+                    disp('The augmented system does NOT have any t-zeros');
+                end
+            end
+        end
     end
 end
