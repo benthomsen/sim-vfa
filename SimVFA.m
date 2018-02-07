@@ -64,21 +64,6 @@ classdef SimVFA < handle
                 SO.reComp = true; % default to trim/linearization on
             end
             
-            % specification for actuator mode (slow/fast/nominal)
-            if (isfield(opt, 'actMode') && ~isempty(opt.actMode))
-                if (strfind(opt.actMode, 'Fast') || strfind(opt.actMode, 'fast'))
-                    SO.actMode = 'Fast';
-                elseif (strfind(opt.actMode, 'Slow') || strfind(opt.actMode, 'slow'))
-                    SO.actMode = 'Slow';
-                elseif (strfind(opt.actMode, 'Nom') || strfind(opt.actMode, 'nom'))
-                    SO.actMode = 'Nominal';
-                else
-                    SO.actMode = 'Slow'; % default to slow actuators
-                end
-            else
-                SO.actMode = 'Slow'; % default to slow actuators
-            end
-
             % specification for order of modeled actuator dynamics (first
             % or second) in control design
             if (isfield(opt, 'mActOrder') && (opt.mActOrder == 1 || opt.mActOrder == 2))
@@ -107,9 +92,9 @@ classdef SimVFA < handle
 
             % actuator parameters and uncertainty 
             % (and some parameter defs which are specific to actuator model)
-            if (SO.mActOrder == 2) % second-order actuator model for control
+            if (SO.pActOrder == 2) % second-order actuator model for control
                 % second order actuator dynamics (nominal)
-                SO.w_act    = 1;   % natural frequency
+                SO.w_act    = 2;   % natural frequency
                 SO.zeta_act = 0.7; % damping
               
                 % matrix form of nominal actuator params
@@ -120,100 +105,50 @@ classdef SimVFA < handle
                     % coefficients to scale uncertainty matrices by
                     SO.Psi1_scale = 1;
                     SO.Psi3_scale = 1;
-                    if strfind(SO.actMode, 'Fast')
-                        SO.w_act_a    = 1.5; % actuator natural frequency
-                        SO.zeta_act_a = 0.7; % actuator damping ratio
-                        SO.lambda_s   = 0.1; % actuator effectiveness
-                    elseif strfind(SO.actMode, 'Slow')
-                        SO.w_act_a    = 0.5;
-                        SO.zeta_act_a = 2;
-                        SO.lambda_s   = 0.2; 
-                    else
-                        SO.w_act_a    = 1;
-                        SO.zeta_act_a = 0.7;
-                        SO.lambda_s   = 0.2;
-                    end
+                    SO.w_act_a    = 0.5; % actuator natural frequency
+                    SO.zeta_act_a = 0.8; % actuator damping ratio
+                    SO.lambda_s   = 0.2; % actuator effectiveness
                 else
-                    SO.w_act_a    = 1;
-                    SO.zeta_act_a = 0.7;
+                    SO.w_act_a    = SO.w_act;
+                    SO.zeta_act_a = SO.zeta_act;
                     SO.lambda_s   = 1;
                     SO.Psi1_scale = 0;
                     SO.Psi3_scale = 0;    
                 end
                 
-                SO.a22 = 1; SO.a21 = 1; SO.a20 = 1; % second-order filter coefficients
+                if (SO.mActOrder == 1)
+                    SO.eig_act = -SO.w_act_a; % actuator cutoff frequency
+                    SO.a11 = 0.1; SO.a10 = 1; % first-order filter coefficients
+                end
+                    
+                SO.a22 = 2; SO.a21 = 2; SO.a20 = 1; % second-order filter coefficients
                 SO.d22 = 1; SO.d21 = 2; SO.d20 = 1; % derivative coefficieints
                 SO.d11 = 1; SO.d10 = 1; % derivative coefficients
                 SO.d00 = 1; % derivative coefficients
-                
+                                        
                 % actuator uncertainty matrices
                 Theta_1 = ((SO.w_act_a)^2 - (SO.w_act)^2) * eye(2);
                 Theta_2 = 2*(SO.zeta_act_a*SO.w_act_a - SO.zeta_act*SO.w_act) * eye(2);
                 
                 % overall system uncertainty matrices
-                SO.Psi1 = SO.Psi1_scale * ([Theta_p; zeros(6, 2)]'); % [\Theta_{p}^{*}; 0; 0]^{T}
-                SO.Psi3 = SO.Psi3_scale * (-inv(SO.D_1) * [zeros(6,2); Theta_1; Theta_2; zeros(2,2)]');
-
-                % for basic LQR
-                SO.rk = 50*eye(length(SO.i_input_sel));
-                SO.qk = diag([0.001,0.001,0.001,0.001,0.001,0.001,0.0001,0.0001,0.0001,0.0001,3,0.01]);            
-            
-            elseif (SO.pActOrder == 2) % first-order actuators for control, second-order in plant
-                % second order actuator dynamics (nominal)
-                SO.w_act    = 1;   % natural frequency
-                SO.zeta_act = 0.7; % damping
-
-                % matrix form of nominal actuator params
-                SO.D_1 = (SO.w_act)^2 * eye(2);
-                SO.D_2 = (2*SO.zeta_act*SO.w_act) * eye(2);
-                
-                if SO.uncertFlag
-                    % coefficients to scale uncertainty matrices by
-                    SO.Psi1_scale = 1;
-                    SO.Psi3_scale = 1;
-                    if strfind(SO.actMode, 'Fast')
-                        SO.eig_act    = -1.5; % actuator cutoff frequency
-                        SO.w_act_a    = 1.5; % actuator natural frequency
-                        SO.zeta_act_a = 0.7; % actuator damping ratio
-                        SO.lambda_s   = 0.1;  % actuator effectiveness
-                    elseif strfind(SO.actMode, 'Slow')
-                        SO.eig_act    = -0.5;
-                        SO.w_act_a    = 0.5;
-                        SO.zeta_act_a = 2;
-                        SO.lambda_s   = 0.2;
-                    else
-                        SO.eig_act    = -1;
-                        SO.w_act_a    = 1;
-                        SO.zeta_act_a = 0.7;
-                        SO.lambda_s   = 0.2;
-                    end
+                if (SO.mActOrder == 2)
+                    SO.Psi1 = SO.Psi1_scale * ([Theta_p; zeros(6, 2)]'); % [\Theta_{p}^{*}; 0; 0]^{T}
+                    SO.Psi3 = SO.Psi3_scale * (-inv(SO.D_1) * [zeros(6,2); Theta_1; Theta_2; zeros(2,2)]');
                 else
-                    SO.eig_act    = -1;
-                    SO.w_act_a    = 1;
-                    SO.zeta_act_a = 0.7;
-                    SO.lambda_s   = 1;
-                    SO.Psi1_scale = 0;
-                    SO.Psi3_scale = 0;
+                    SO.Psi1_act = SO.Psi1_scale * ([Theta_p; zeros(6, 2)]'); % [\Theta_{p}^{*}; 0; 0]^{T}
+                    SO.Psi3_act = SO.Psi3_scale * (-inv(SO.D_1) * [zeros(6,2); Theta_1; Theta_2; zeros(2,2)]');
                 end
                 
-                SO.a22 = 1; SO.a21 = 1; SO.a20 = 1; % second-order filter coefficients
-                SO.a11 = 0.1; SO.a10 = 1; % first-order filter coefficients
-
-                % actuator uncertainty matrices
-                Theta_1 = ((SO.w_act_a)^2 - (SO.w_act)^2) * eye(2);
-                Theta_2 = 2*(SO.zeta_act_a*SO.w_act_a - SO.zeta_act*SO.w_act) * eye(2);
-                
-                % overall system uncertainty matrices
-                SO.Psi1_act = SO.Psi1_scale * ([Theta_p; zeros(6, 2)]'); % [\Theta_{p}^{*}; 0; 0]^{T}
-                SO.Psi3_act = SO.Psi3_scale * (-inv(SO.D_1) * [zeros(6,2); Theta_1; Theta_2; zeros(2,2)]');
-
-                % for basic LQR
+                % for baseline LQR design
                 SO.rk = 50*eye(length(SO.i_input_sel));
-                SO.qk = diag([0.001,0.001,0.001,0.001,0.001,0.001,0.0001,0.0001,3,0.01]);
-
-            else
+                if (SO.mActOrder == 2)
+                    SO.qk = diag([0.001,0.1,0.001,0.1,10,1,0.0001,0.0001,0.0001,0.0001,3,0.002]);            
+                else
+                    SO.qk = diag([0.001,0.1,0.001,0.1,10,1,0.0001,0.0001,3,0.002]);            
+                end
+            else % model order = true order of linearized dynamics
                 % first order actuator dynamics (nominal)
-                SO.w_act    = 1;   % cutoff frequency
+                SO.w_act = 2; % cutoff frequency
                 
                 % matrix form of nominal actuator params
                 SO.D_1 = (SO.w_act) * eye(2);
@@ -222,18 +157,10 @@ classdef SimVFA < handle
                     % coefficients to scale uncertainty matrices by
                     SO.Psi1_scale = 1;
                     SO.Psi2_scale = 1;
-                    if strfind(SO.actMode, 'Fast')
-                        SO.eig_act  = -1.5; % actuator cutoff frequency
-                        SO.lambda_s = 0.1;  % actuator effectiveness
-                    elseif strfind(SO.actMode, 'Slow')
-                        SO.eig_act  = -0.5;
-                        SO.lambda_s = 0.1;
-                    else
-                        SO.eig_act  = -1;
-                        SO.lambda_s = 0.2;
-                    end
+                    SO.eig_act  = -0.5; % actuator cutoff frequency
+                    SO.lambda_s = 0.1;  % actuator effectiveness
                 else
-                    SO.eig_act    = -1;
+                    SO.eig_act    = -SO.w_act;
                     SO.lambda_s   = 1;
                     SO.Psi1_scale = 0;
                     SO.Psi2_scale = 0;
@@ -248,9 +175,9 @@ classdef SimVFA < handle
                 SO.Psi1 = SO.Psi1_scale * ([Theta_p; zeros(4, 2)]'); % [\Theta_{p}^{*}; 0; 0]^{T}
                 SO.Psi2 = SO.Psi2_scale * (-inv(SO.D_1) * [zeros(6,2); Theta_1; zeros(2,2)]');
 
-                % for basic LQR
+                % for baseline LQR design
                 SO.rk = 50*eye(length(SO.i_input_sel));
-                SO.qk = diag([0.001,0.001,0.001,0.001,0.001,0.001,0.0001,0.0001,3,0.01]);
+                SO.qk = diag([0.001,0.1,0.001,0.1,10,1,0.0001,0.0001,3,0.002]);            
             end
             
             SO.Lambda_s = SO.lambda_s*eye(2); % actuator effectiveness matrix
@@ -259,7 +186,7 @@ classdef SimVFA < handle
             SO.postcomp = 1; 
             SO.q0 = 10; SO.epsilon = 30;
             % q0 used in P0 = lyap(NAM', q0*eye[]) to find Rinv
-            SO.s0 = 0; % s0 used in A_eta = A+s0*eye[] to find Rinv
+            SO.s0 = 0.25; % s0 used in A_eta = A+s0*eye[] to find Rinv
             
             % command filter coefficients
             SO.zeta_cmd = 2; SO.w_cmd = 0.5;
@@ -861,14 +788,14 @@ classdef SimVFA < handle
 
                 % Simulation parameters
                 % high-order tuner gains
-                SO.Gamma.l = 1000*eye(num_input);
-                SO.Gamma.vl = 10000*eye(num_input);
-                SO.Gamma.p1 = 10*eye(num_state-2*num_input);
-                SO.Gamma.p2 = 10*eye(num_state-2*num_input);
-                SO.Gamma.p3 = 30*eye(num_state);
-                SO.Gamma.p31 = 1000*eye(num_output_i);
+                SO.Gamma.l = 2000*eye(num_input);
+                SO.Gamma.vl = 2000*eye(num_input);
+                SO.Gamma.p1 = 0.2*eye(num_state-2*num_input);
+                SO.Gamma.p2 = 0.2*eye(num_state-2*num_input);
+                SO.Gamma.p3 = 0.2*eye(num_state);
+                SO.Gamma.p31 = 400*eye(num_output_i);
                 SO.Gamma.p31xm = SO.Gamma.p31(1:num_input,1:num_input);
-                SO.Gamma.p32 = 1000*eye(num_output_i);
+                SO.Gamma.p32 = 400*eye(num_output_i);
 
                 % intial conditions
                 SO.lambda_0 = eye(num_input);
@@ -882,9 +809,9 @@ classdef SimVFA < handle
                 SO.xm_0 = zeros(num_state_i,1);
 
                 % more high-order tuner gains
-                SO.mu.lambda = 1; SO.mu.vlambda = 1; SO.mu.psi1 = 1; 
-                SO.mu.psi2 = 1; SO.mu.psi3 = 1; SO.mu.psi31  = 1; 
-                SO.mu.psi32 = 1;
+                SO.mu.lambda = 0.1; SO.mu.vlambda = 0.1; SO.mu.psi1 = 0.1; 
+                SO.mu.psi2 = 0.1; SO.mu.psi3 = 0.1; SO.mu.psi31  = 0.1; 
+                SO.mu.psi32 = 0.1;
 
                 % actuator dynamics (real dynamics, not nominal)
                 SO.Aact = [zeros(num_input), eye(num_input);
@@ -1003,6 +930,9 @@ classdef SimVFA < handle
             vfa.simOutObj = sim(vfa.simInObj);
             run_time = toc(start);
             disp(['Simulation finished in ', num2str(run_time), ' seconds']);
+            if (vfa.simOutObj.t_sim(end)/vfa.simOpt.tsim < 0.99)
+                disp('Simulation exited early due to error/signal divergence');
+            end
         end
         
         function plotTrim(vfa)
