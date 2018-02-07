@@ -118,7 +118,7 @@ classdef SimVFA < handle
                 
                 if (SO.mActOrder == 1)
                     SO.eig_act = -SO.w_act_a; % actuator cutoff frequency
-                    SO.a11 = 0.1; SO.a10 = 1; % first-order filter coefficients
+                    SO.a11 = 0.5; SO.a10 = 1; % first-order filter coefficients
                 end
                     
                 SO.a22 = 2; SO.a21 = 2; SO.a20 = 1; % second-order filter coefficients
@@ -142,9 +142,9 @@ classdef SimVFA < handle
                 % for baseline LQR design
                 SO.rk = 50*eye(length(SO.i_input_sel));
                 if (SO.mActOrder == 2)
-                    SO.qk = diag([0.001,0.1,0.001,0.1,10,1,0.0001,0.0001,0.0001,0.0001,3,0.002]);            
+                    SO.qk = diag([0.001,0.5,0.001,0.5,100,20,0.001,0.001,0.0001,0.0001,0.2,0.0001]);            
                 else
-                    SO.qk = diag([0.001,0.1,0.001,0.1,10,1,0.0001,0.0001,3,0.002]);            
+                    SO.qk = diag([0.001,0.5,0.001,0.5,100,20,0.001,0.001,1,0.0005]);
                 end
             else % model order = true order of linearized dynamics
                 % first order actuator dynamics (nominal)
@@ -158,7 +158,7 @@ classdef SimVFA < handle
                     SO.Psi1_scale = 1;
                     SO.Psi2_scale = 1;
                     SO.eig_act  = -0.5; % actuator cutoff frequency
-                    SO.lambda_s = 0.1;  % actuator effectiveness
+                    SO.lambda_s = 0.2;  % actuator effectiveness
                 else
                     SO.eig_act    = -SO.w_act;
                     SO.lambda_s   = 1;
@@ -166,7 +166,7 @@ classdef SimVFA < handle
                     SO.Psi2_scale = 0;
                 end
                 
-                SO.a11 = 0.1; SO.a10 = 1; % first-order filter coefficients
+                SO.a11 = 0.5; SO.a10 = 1; % first-order filter coefficients
 
                 % actuator uncertainty matrix
                 Theta_1 = (-SO.eig_act - SO.w_act) * eye(2);
@@ -177,7 +177,7 @@ classdef SimVFA < handle
 
                 % for baseline LQR design
                 SO.rk = 50*eye(length(SO.i_input_sel));
-                SO.qk = diag([0.001,0.1,0.001,0.1,10,1,0.0001,0.0001,3,0.002]);            
+                SO.qk = diag([0.001,0.5,0.001,0.5,100,20,0.001,0.001,1,0.0005]);
             end
             
             SO.Lambda_s = SO.lambda_s*eye(2); % actuator effectiveness matrix
@@ -193,7 +193,7 @@ classdef SimVFA < handle
 
             SO.data_deci = 1; % decimation for saved data from Simulink
             
-            SO.eta_nom = 10; % select dihedral angle (deg) [== ind-1] from linearized tables
+            SO.eta_nom = 11; % select dihedral angle (deg) [== ind-1] from linearized tables
 
             % commands
             r_step_eta = pi/180 * [1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1];
@@ -213,11 +213,11 @@ classdef SimVFA < handle
         % set options for trimming nonlinear VFA model
             % data: [w; x; y; z] (used for inertial properties of VFA)
             vfa.trimPts.data = [300; 30; 2; 18];
-            vfa.trimPts.Vinitial = 30;     % airspeed (ft/s)
+            vfa.trimPts.Vinitial = 64;     % airspeed (ft/s)
             vfa.trimPts.hinitial = 40000;  % altitude (ft)
-            vfa.trimPts.alphainitial = 7.5*pi/180; % angle of attack (rad)
-            vfa.trimPts.thetainitial = 7.5*pi/180; % pitch angle guess (rad)
-            vfa.trimPts.etasweep = (0:45)'; % dihedral angles to linearize/trim (deg)
+            vfa.trimPts.alphainitial = 2*pi/180; % angle of attack (rad)
+            vfa.trimPts.thetainitial = 2*pi/180; % pitch angle guess (rad)
+            vfa.trimPts.etasweep = (0:20)'; % dihedral angles to linearize/trim (deg)
         end
         
         function setPlotOpts(vfa)
@@ -255,9 +255,9 @@ classdef SimVFA < handle
                     etainitial = i*pi/180; % dihedral angle in radians
 
                     stateguess  = [TP.Vinitial TP.alphainitial+i/600 TP.hinitial TP.thetainitial 0 etainitial 0]';
-                    inputguess  = [2000 0.1 (15+i/3)*pi/180 (5-i/10)*pi/180 -0.1 0 0 0 0]';
+                    inputguess  = [100 0.15 (15-i/10)*pi/180 0 -0.1 0 0 0 0]';
                     statesknown = [1 1 1 0 1 1 1]';
-                    inputknown  = [0 0 0 1 0 1 1 1 1]';
+                    inputknown  = [0 0 0 0 0 1 1 1 1]';
 
                     %%%%%%%%% setting parameters %%%%%%%%%%%%%
                     set(oper_spec.States,'known',statesknown,'x',stateguess);
@@ -523,10 +523,10 @@ classdef SimVFA < handle
                         Ba3  = SO.a22*Ba; % full relative-degree 3 input matrix
                         Ba2  = Aa*Ba*SO.a22 + Ba*SO.a21; % RD2 input path
 
-                        % Add fictitious inputs (squaring up): augment Ba with linear
-                        % combination of columns of nullspace of OBSV matrix
-                        Ba_add_pool = null([Ca; (Ca*Aa)]);
-                        Ba_aug = [Ba, 0.1*(6*Ba_add_pool(:,5)+6*Ba_add_pool(:,2)+0.4*Ba_add_pool(:,6))];
+%                         % Add fictitious inputs (squaring up): 
+%                         Ba_add_pool = null([Ca; (Ca*Aa)]);
+%                         Ba_aug = [Ba, 0.1*(-2*Ba_add_pool(:,5)+16*Ba_add_pool(:,2)+0.5*Ba_add_pool(:,6))];
+                        [Ba_aug, ~] = SimVFA.squareUpB(Aa, Ba, Ca, 1, 500);
                         Da_aug = [Da, [0,0,0]']; % no direct feedthrough
 
                         [nrel_aug, vrel_aug, ~] = SimVFA.checkRelDeg(Aa,Ba_aug,Ca,Da_aug,2);
@@ -552,6 +552,7 @@ classdef SimVFA < handle
                         % Coordinate transform for relative degree 1 input path
                         Bi31  = SO.a22*Atilt^2*Btilt + SO.a21*Atilt*Btilt + SO.a20*Btilt;
                         Bi3   = SO.a22*Btilt(:,1:num_input);
+                        tzero(Atilt,Bi31,Ctilt,Dtilt)
                         
                         % make sure transformed transformed squared-up system is minimum phase
                         if SimVFA.checkNegative(tzero(Atilt,Bi31,Ctilt,Dtilt))
@@ -679,7 +680,7 @@ classdef SimVFA < handle
                         end
                         
                         % Add fictitious inputs (squaring up): 
-                        [Ba_aug, ~] = SimVFA.squareUpRelDeg2(Aa, Ba, Ca, 1, 50);
+                        [Ba_aug, ~] = SimVFA.squareUpB(Aa, Ba, Ca, 1, 500);
                         Da_aug = [Da, [0,0,0]']; % no direct feedthrough
 
                         [nrel_aug, vrel_aug, ~] = SimVFA.checkRelDeg(Aa,Ba_aug,Ca,Da_aug,2);
@@ -809,9 +810,10 @@ classdef SimVFA < handle
                 SO.xm_0 = zeros(num_state_i,1);
 
                 % more high-order tuner gains
-                SO.mu.lambda = 0.1; SO.mu.vlambda = 0.1; SO.mu.psi1 = 0.1; 
-                SO.mu.psi2 = 0.1; SO.mu.psi3 = 0.1; SO.mu.psi31  = 0.1; 
-                SO.mu.psi32 = 0.1;
+                mu = 0.02;
+                SO.mu.lambda = mu; SO.mu.vlambda = mu; SO.mu.psi1 = mu; 
+                SO.mu.psi2 = mu; SO.mu.psi3 = mu; SO.mu.psi31  = mu; 
+                SO.mu.psi32 = mu;
 
                 % actuator dynamics (real dynamics, not nominal)
                 SO.Aact = [zeros(num_input), eye(num_input);
@@ -878,10 +880,10 @@ classdef SimVFA < handle
 
                 % Simulation parameters
                 % tuner gains
-                SO.Gamma.l = 1000*eye(num_input);
-                SO.Gamma.p1 = 0.1*eye(num_state-num_input);
-                SO.Gamma.p2 = 0.1*eye(num_state);
-                SO.Gamma.p21 = 200*eye(num_output_i);
+                SO.Gamma.l = 2000*eye(num_input);
+                SO.Gamma.p1 = 0.2*eye(num_state-num_input);
+                SO.Gamma.p2 = 0.2*eye(num_state);
+                SO.Gamma.p21 = 400*eye(num_output_i);
 
                 % intial conditions
                 SO.lambda_0 = eye(num_input);
@@ -995,7 +997,7 @@ classdef SimVFA < handle
             plot(0:45,TP.trim_states(:,2)*180/pi,'k')
             ylabel('Trim angle of attack [deg])','fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
             xlabel('Dihedral angle [deg]','fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
-            axis([0 45 7 12])
+            axis([0 45 0 10])
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
 
         end
@@ -1620,14 +1622,10 @@ classdef SimVFA < handle
                 Perm(i,index(i)) = 1;
             end
         end
-        
-        function [B_fin, SU_zeros] = squareUpRelDeg2(A_orig, B_orig, C_orig, q0, r0, verbose)
-            % square up procedure for uniform relative degree 2 system to add
-            % ficticious inputs (i.e. augment B_orig)
 
-            if ~exist('verbose','var')
-                verbose = false;
-            end
+        function [B_fin, SU_zeros] = squareUpB(A_orig, B_orig, C_orig, q0, r0)
+            % square up procedure for uniform relative degree 2 or 3 system to add
+            % ficticious inputs (i.e. augment B_orig)
 
             % system transposed to follow procedure to augment C
             A = A_orig';
@@ -1635,7 +1633,7 @@ classdef SimVFA < handle
             C = B_orig';
 
             n = length(A); m = size(B,2); p = size(C,1);
-            [At, Bt, Ct, T] = SimVFA.findSCB(A,B,C);
+            [At, Bt, Ct, T] = SimVFA.sqUpTransform(A,B,C);
 
             A21 = At(m+1:n,1:m);
             A22 = At(m+1:n,m+1:n);
@@ -1643,21 +1641,22 @@ classdef SimVFA < handle
             C11 = Ct(:,1:m);
             C12 = Ct(:,m+1:n);
 
-            if (rank(A21)>=m && rank(C11)==0)
-                [Csq_aug, Ct1_aug, ~] = SimVFA.findSquareUpInner(A22,A21,C12,q0,r0,verbose);
-                Ct_aug = [Ct1_aug, Csq_aug];
+            if (rank(A21)==m && rank(C11)==0)
+                [C2, C1, ~] = SimVFA.findSquareUpInner(A22,A21,C12,q0,r0);
+                Ct_aug = [C1, C2];
             else
                 error('Squaring-Up Error: Rank(A21) < m');
             end
 
             C_aug = Ct_aug * T;
-            C_aug(abs(C_aug)<1e-8) = 0;
             SU_zeros = tzero(A,B,C_aug, zeros(size(Ct_aug,1),size(Bt,2)));
 
             B_fin = C_aug';
         end
 
-        function [At, Bt, Ct, T] = findSCB(A,B,C)
+        function [At, Bt, Ct, T] = sqUpTransform(A,B,C)
+            % Tranform to controller canonical form, as in the paper
+            % "Squaring-Up Method in the Presence of Transmission Zeros"
             B_perp = (null(B'));
             B_pinv = pinv(B);
             T = [B_pinv;B_perp'];
@@ -1665,68 +1664,60 @@ classdef SimVFA < handle
             At = T*A*inv(T);
             Bt = T*B;
             Ct = C*inv(T);
+
+            T(abs(T)<1e-12) = 0;
+            At(abs(At)<1e-9) = 0;
+            Bt(abs(Bt)<1e-9) = 0;
+            Ct(abs(Ct)<1e-9) = 0;
         end
 
-        function [C_aug, D_aug, SU_zeros] = findSquareUpInner(A,B,C,q0,r0,verbose)
+        function [C_aug, D_aug, SU_zeros] = findSquareUpInner(A,B,C,q0,r0)
+            % This is needed for relative degree 2 and 3 systems where CB is not full rank
 
-            [At, Bt, Ct, T] = SimVFA.findSCB(A,B,C);
+            [At, Bt, Ct, T] = SimVFA.sqUpTransform(A,B,C);
 
-            %using the full rank of Bt
             n=length(At); m=size(Bt,2); p=size(Ct,1);
 
-            if rank(Bt) == size(Bt,2)
-                Bt_0 = sum(abs(Bt),2);
-                index_0 = find(abs(Bt_0)>1e-8);
-                n1 = length(index_0);
-            else
+            if (rank(Bt) ~= size(Bt,2))
                 error('Squaring-Up Error: Simplified procedure requires B to have full rank');
             end
 
-            n2 = n-n1;
 
-            A21 = At(n1+1:n1+n2,1:n1);
-            A22 = At(n1+1:n1+n2,n1+1:n1+n2);
+            A21 = At(m+1:n,1:m);
+            A22 = At(m+1:n,m+1:n);
 
-            C11 = Ct(:,1:n1);
-            C12 = Ct(:,n1+1:n1+n2);
-            C21 = (null(C11))';
-            C1 = [C11; C21];
+            C11 = Ct(:,1:m);
+            C12 = Ct(:,m+1:n);
 
-            C2tilt = [C12; zeros(m-p,n-m)];
+            if (rank(A21)==m && rank(C11)==0) % for relative degree 3 (recurse)
+                [C2, C1, ~] = SimVFA.findSquareUpInner(A22,A21,C12,q0,r0);
+                Ct_aug = [C1, C2];
+                C_aug = Ct_aug * T;
+                D_aug = zeros(m);
+                SU_zeros = tzero(A,B,C_aug, zeros(size(Ct_aug,1),size(Bt,2)));
+            else % for relative degree 2
+                C21 = (null(C11))';
+                C1 = [C11; C21];
 
-            A22tilt = A22-A21*inv(C1)*C2tilt;
+                C2tilde = [C12; zeros(m-p,n-m)];
 
-            B_pseudo = A21*inv(C1);
-            B_pseudo_2 = B_pseudo(:,n1-m+p+1:n1);
+                A22tilde = A22-A21*inv(C1)*C2tilde;
 
-            if(verbose); disp(strcat('Square up can place: ',num2str(length(A22tilt)),' zeros')); end
+                B_pseudo = A21*inv(C1);
+                B_pseudo_2 = B_pseudo(:, end-(m-p-1):end);
 
-            eig_A22tilt = eig(A22tilt);
-            Pos_A = eig_A22tilt(real(eig_A22tilt)>=0);
-            if isempty(Pos_A)
-                C2hat_p = zeros(size(B_pseudo_2,2),size(A22tilt,2));
-            else
-                if(verbose); disp('Using lQR to place t zeros'); end
-                Qtilt = q0*eye(length(A22tilt));
-                Rtilt = r0*eye(size(B_pseudo_2,2));
-                C2hat_p = lqr(A22tilt,B_pseudo_2,Qtilt,Rtilt);
-            end
+                Qtilde = q0*eye(length(A22tilde));
+                Rtilde = r0*eye(size(B_pseudo_2,2));
+                C22 = lqr(A22tilde,B_pseudo_2,Qtilde,Rtilde);
 
-            C2hat = [zeros(p,n-m); C2hat_p];
-            C2 = C2tilt + C2hat;
+                C2 = [C12; C22];
 
-            Ct_aug = [C1, C2];
-            C_aug = Ct_aug*T;
-            C_aug(abs(C_aug)<1e-8) = 0; % round numerical noise to 0
-            D_aug = zeros(m);
+                Ct_aug = [C1, C2];
+                C_aug = Ct_aug*T;
+                C_aug(abs(C_aug)<1e-9) = 0; % round numerical noise to 0
+                D_aug = zeros(m);
 
-            SU_zeros = tzero(A,B,C_aug,D_aug);
-            if (verbose)
-                if ~isempty(SU_zeros)
-                    disp(strcat('There are tzeros in the augmented system. They are: ',num2str(SU_zeros)));
-                else
-                    disp('The augmented system does NOT have any t-zeros');
-                end
+                SU_zeros = tzero(A,B,C_aug,D_aug);
             end
         end
     end
