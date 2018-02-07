@@ -11,7 +11,7 @@
 clear; clc;
 adapt = 1; % adaptive control or baseline LQR
 uncrt = 1; % uncertainty added or system completely known?
-steps = 0; % step commands or sinusoidal commands
+steps = 1; % step commands or sinusoidal commands
 
 % commands for the plant output - either steps or a sine wave
 if (steps)
@@ -24,7 +24,7 @@ else
     sine_freq = 1; % rad/s
     step_time = 1;
 end
-tfin = 500;   % simulation time (s)
+tfin = 300;   % simulation time (s)
 dT   = 0.005; % sim step size (1/Hz)
 
 % command filter (so derivative is available)
@@ -103,7 +103,7 @@ l   = eps * ba_1 * b_p * om_n^2; % output-error feedback
 b_r = [0; 0; 0; -1]; % "B_z" in MIMO section of paper (for integral error state)
 
 % tuners for adaptive law
-mu  = 2; % scalar gain in g(x, mu) = 1 + (mu * x'x)
+mu  = 0.2; % scalar gain in g(x, mu) = 1 + (mu * x'x)
 A_h = [0,   1;
        -a20/a22, -a21/a22];
 b_h = [0; a20/a22];
@@ -115,7 +115,7 @@ c_h2 = [-a20/a22; -a21/a22];
 if (adapt)
     gamma = 4; % to scale all gains simultaneously
     g.a = 1 * gamma; % \psi_{3}^{1}
-    g.b = 2 * gamma; % \psi_{3}^{2}
+    g.b = 1 * gamma; % \psi_{3}^{2}
     g.c = 50 * gamma; % \lambda
     g.d = 0.5 * gamma; % \undeline{\psi}_{1}
     g.e = 0.1 * gamma; % \undeline{\psi}_{2}
