@@ -196,8 +196,8 @@ classdef SimVFA < handle
             SO.eta_nom = 11; % select dihedral angle (deg) [== ind-1] from linearized tables
 
             % commands
-            r_step_eta = pi/180 * [1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1];
-            r_step_Az  = [-1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1];
+            r_step_eta = pi/180 * [1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1];
+            r_step_Az  = [-1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1];
             r_step_scaled = [r_step_eta; r_step_Az];
 
             % simulation times for command steps
@@ -524,8 +524,6 @@ classdef SimVFA < handle
                         Ba2  = Aa*Ba*SO.a22 + Ba*SO.a21; % RD2 input path
 
 %                         % Add fictitious inputs (squaring up): 
-%                         Ba_add_pool = null([Ca; (Ca*Aa)]);
-%                         Ba_aug = [Ba, 0.1*(-2*Ba_add_pool(:,5)+16*Ba_add_pool(:,2)+0.5*Ba_add_pool(:,6))];
                         [Ba_aug, ~] = SimVFA.squareUpB(Aa, Ba, Ca, 1, 500);
                         Da_aug = [Da, [0,0,0]']; % no direct feedthrough
 
@@ -1011,28 +1009,32 @@ classdef SimVFA < handle
             figure('Position',[1,1, 800, 400]);
             subplot(2,2,1)
             plot(SOO.t_sim, SOO.r_cmd(1,:)*180/pi + vfa.simOpt.eta_nom, 'LineWidth', 1)
-            hold on; plot(SOO.t_sim, SOO.z(1,:)*180/pi + vfa.simOpt.eta_nom, 'LineWidth', 1)
+            hold on; grid on; plot(SOO.t_sim, SOO.z(1,:)*180/pi + vfa.simOpt.eta_nom, 'LineWidth', 1, 'LineStyle', '-.')
             xlim([0 tsim])
             title('Dihedral (deg)')
+            h=legend('Command', 'Output');
+            set(h,'fontsize',vfa.pltOpt.legfontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname,'Interpreter','Latex','Location','SouthEast'); legend('boxoff')
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
 
             subplot(2,2,2)
             plot(SOO.t_sim, SOO.r_cmd(2,:), 'LineWidth', 1)
-            hold on; plot(SOO.t_sim, SOO.z(2,:), 'LineWidth', 1)
+            hold on; grid on; plot(SOO.t_sim, SOO.z(2,:), 'LineWidth', 1, 'LineStyle', '-.')
             xlim([0 tsim])
             title('Vertical Accel (ft/s^2)')
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
 
             subplot(2,2,3)
-            plot(SOO.t_sim, SOO.u_p(1,:)*180/pi, 'LineWidth', 1)
+            plot(SOO.t_sim, SOO.u_p(1,:)*180/pi, 'LineWidth', 1); grid on;
             xlim([0 tsim])
-            title('Aileron (deg)')
+            title('Outer Aileron (deg)')
+            xlabel('Time (s)')
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
 
             subplot(2,2,4)
-            plot(SOO.t_sim, SOO.u_p(2,:)*180/pi, 'LineWidth', 1)
+            plot(SOO.t_sim, SOO.u_p(2,:)*180/pi, 'LineWidth', 1); grid on;
             xlim([0 tsim])
-            title('Elevator (deg)')
+            title('Center Elevator (deg)')
+            xlabel('Time (s)')
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
                     
             % plot adaptive parameters (matrix norms to reduce dimensionality)
@@ -1068,11 +1070,11 @@ classdef SimVFA < handle
 
                     figure('Position',[100,100, 800, 400]);
                     plot(SOO.t_sim, norms, 'LineWidth', 1);
-                    xlim([0 tsim]);
-                    grid on;
+                    xlim([0 tsim]); grid on;
                     title('Normalized Learned Parameters')
+                    xlabel('Time (s)')
                     h=legend('$\|\underline{\it{\Lambda}}\|$', '$\|\underline{\Psi}_1\|$', '$\|\underline{\Psi}_2\|$', '$\|\psi_3^1\|$', '$\|\psi_3^2\|$', '$\|\underline{\Psi}_3\|$');
-                    set(h,'fontsize',vfa.pltOpt.legfontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname,'Interpreter','Latex','Location','NorthEast')
+                    set(h,'fontsize',vfa.pltOpt.legfontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname,'Interpreter','Latex','Location','SouthEast'); legend('boxoff')
                     set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
                 else % first-order actuator dynamics
                     norm_lambda_ada = zeros(steps, 1);
@@ -1096,11 +1098,11 @@ classdef SimVFA < handle
 
                     figure('Position',[100,100, 800, 400]);
                     plot(SOO.t_sim, norms, 'LineWidth', 1);
-                    xlim([0 tsim]);
-                    grid on;
+                    xlim([0 tsim]); grid on;
                     title('Normalized Learned Parameters')
+                    xlabel('Time (s)')
                     h=legend('$\|\underline{\it{\Lambda}}\|$', '$\|\underline{\Psi}_1\|$', '$\|\underline{\Psi}_2\|$', '$\|\psi_{2}^1\|$');
-                    set(h,'fontsize',vfa.pltOpt.legfontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname,'Interpreter','Latex','Location','NorthEast')
+                    set(h,'fontsize',vfa.pltOpt.legfontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname,'Interpreter','Latex','Location','SouthEast'); legend('boxoff')
                     set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
                 end
             end
