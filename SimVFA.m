@@ -87,7 +87,7 @@ classdef SimVFA < handle
             % index selections
             SO.i_state_sel = [1:2,4:7]; % select all states except altitude
             SO.i_dihedral  = 6;         % dihedral angle
-            SO.i_input_sel = [2,3];     % outer aileron, center elevator
+            SO.i_input_sel = [3,4];     % outer aileron, center elevator
             SO.i_output    = 5;         % pitch rate
 
             % actuator parameters and uncertainty 
@@ -121,7 +121,7 @@ classdef SimVFA < handle
                     SO.a11 = 0.5; SO.a10 = 1; % first-order filter coefficients
                 end
                     
-                SO.a22 = 2; SO.a21 = 2; SO.a20 = 1; % second-order filter coefficients
+                SO.a22 = 1; SO.a21 = 2/sqrt(2); SO.a20 = 2; % second-order filter coefficients
                 SO.d22 = 1; SO.d21 = 2; SO.d20 = 1; % derivative coefficieints
                 SO.d11 = 1; SO.d10 = 1; % derivative coefficients
                 SO.d00 = 1; % derivative coefficients
@@ -142,9 +142,9 @@ classdef SimVFA < handle
                 % for baseline LQR design
                 SO.rk = 50*eye(length(SO.i_input_sel));
                 if (SO.mActOrder == 2)
-                    SO.qk = diag([0.001,0.5,0.001,0.5,100,20,0.001,0.001,0.0001,0.0001,0.2,0.0001]);            
+                    SO.qk = diag([0.001,2,0.001,2,200,50,0.001,0.001,0.0001,0.0001,2,0.0002]);
                 else
-                    SO.qk = diag([0.001,0.5,0.001,0.5,100,20,0.001,0.001,1,0.0005]);
+                    SO.qk = diag([0.001,2,0.001,2,200,50,0.001,0.001,8,0.001]);
                 end
             else % model order = true order of linearized dynamics
                 % first order actuator dynamics (nominal)
@@ -177,14 +177,14 @@ classdef SimVFA < handle
 
                 % for baseline LQR design
                 SO.rk = 50*eye(length(SO.i_input_sel));
-                SO.qk = diag([0.001,0.5,0.001,0.5,100,20,0.001,0.001,1,0.0005]);
+                SO.qk = diag([0.001,2,0.001,2,200,50,0.001,0.001,8,0.001]);
             end
             
             SO.Lambda_s = SO.lambda_s*eye(2); % actuator effectiveness matrix
 
             % post-compensator version (1, 2, or 3) - calculation of output mixing matrix S
             SO.postcomp = 1; 
-            SO.q0 = 10; SO.epsilon = 30;
+            SO.q0 = 10; SO.epsilon = 20;
             % q0 used in P0 = lyap(NAM', q0*eye[]) to find Rinv
             SO.s0 = 0.25; % s0 used in A_eta = A+s0*eye[] to find Rinv
             
@@ -196,8 +196,8 @@ classdef SimVFA < handle
             SO.eta_nom = 11; % select dihedral angle (deg) [== ind-1] from linearized tables
 
             % commands
-            r_step_eta = pi/180 * [1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1];
-            r_step_Az  = [-1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1];
+            r_step_eta = 1 * pi/180 * [1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1];
+            r_step_Az  = 1.5 * [-1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1];
             r_step_scaled = [r_step_eta; r_step_Az];
 
             % simulation times for command steps
@@ -213,10 +213,10 @@ classdef SimVFA < handle
         % set options for trimming nonlinear VFA model
             % data: [w; x; y; z] (used for inertial properties of VFA)
             vfa.trimPts.data = [300; 30; 2; 18];
-            vfa.trimPts.Vinitial = 64;     % airspeed (ft/s)
+            vfa.trimPts.Vinitial = 68;     % airspeed (ft/s)
             vfa.trimPts.hinitial = 40000;  % altitude (ft)
-            vfa.trimPts.alphainitial = 2*pi/180; % angle of attack (rad)
-            vfa.trimPts.thetainitial = 2*pi/180; % pitch angle guess (rad)
+            vfa.trimPts.alphainitial = 2.8*pi/180; % angle of attack (rad)
+            vfa.trimPts.thetainitial = 2.8*pi/180; % pitch angle guess (rad)
             vfa.trimPts.etasweep = (0:20)'; % dihedral angles to linearize/trim (deg)
         end
         
@@ -254,17 +254,16 @@ classdef SimVFA < handle
 
                     etainitial = i*pi/180; % dihedral angle in radians
 
-                    stateguess  = [TP.Vinitial TP.alphainitial+i/600 TP.hinitial TP.thetainitial 0 etainitial 0]';
-                    inputguess  = [100 0.15 (15-i/10)*pi/180 0 -0.1 0 0 0 0]';
-                    statesknown = [1 1 1 0 1 1 1]';
-                    inputknown  = [0 0 0 0 0 1 1 1 1]';
+                    stateguess  = [TP.Vinitial TP.alphainitial TP.hinitial TP.thetainitial 0 etainitial 0]';
+                    inputguess  = [100 0 (15-i/10)*pi/180 0 -0.1 0 0 0 0]';
+                    statesknown = [1 1 1 1 1 1 1]';
+                    inputknown  = [0 1 0 0 0 1 1 1 1]';
 
                     %%%%%%%%% setting parameters %%%%%%%%%%%%%
                     set(oper_spec.States,'known',statesknown,'x',stateguess);
                     set(oper_spec.States,'Min',[10 0 0 0 -2 0 -2]');
                     set(oper_spec.States,'Max',[80 10*pi/180 100000 30*pi/180 2 60*pi/180 2]');
-                    set(oper_spec.Inputs,'known',inputknown,'u',inputguess,'Max',[2000 1 1 0 0  0 0 0 0]');
-                    set(oper_spec.Inputs,'u',inputguess,'Min',[0 -1 -1 -1 -1 0 0 0 0]');
+                    set(oper_spec.Inputs,'known',inputknown,'u',inputguess,'Min',[0 -0.2 -0.2 -1 -1 0 0 0 0]','Max',[2000 0.2 0.2 1 1  0 0 0 0]');
 
                     [op_point,~] = findop('VFA_lin',oper_spec);
                     linsys = linearize('VFA_lin',op_point);
@@ -474,10 +473,10 @@ classdef SimVFA < handle
                               0,TP.Vinitial*Ap(2,2),0,0,0,0,TP.Vinitial*Bp(2,SO.i_input_sel),0,0];
 
                         num_input = size(B,2);
+                        num_cmd = 2;
 
                         % Augment plant with integral error (for two tracked states)
                         index_output = [1,2]; % outputs to track (from Cz)
-                        index_cmd    = [2,3]; % commands used from VFA model
 
                         % augmented system is used in reference model and control in sim.
                         % the integral error states are appended after actuator dynamics.
@@ -489,7 +488,7 @@ classdef SimVFA < handle
                         % Ca selects pitch rate and integral errors as measurements
                         Ca  = [C, zeros(size(C,1),length(index_output));
                                zeros(length(index_output),length(A)),eye(length(index_output))]; % "C" in paper
-                        Caz = [Cz, zeros(length(index_cmd))]; % Caz selects dihedral angle and vertical acceleration as measurements
+                        Caz = [Cz, zeros(num_cmd)]; % Caz selects dihedral angle and vertical acceleration as measurements
                         Da  = zeros(size(Ca,1),size(Ba,2)); % no direct feedthrough
 
                         num_output_i = size(Ca,1);
@@ -632,10 +631,10 @@ classdef SimVFA < handle
                               0,TP.Vinitial*Ap(2,2),0,0,0,0,TP.Vinitial*Bp(2,SO.i_input_sel)];
 
                         num_input = size(B,2);
+                        num_cmd = 2;
 
                         % Augment plant with integral error (for two tracked states)
                         index_output = [1,2]; % outputs to track (from Cz)
-                        index_cmd    = [2,3]; % commands used from VFA model
 
                         % augmented system is used in reference model and control in sim.
                         % the integral error states are appended after actuator dynamics.
@@ -646,7 +645,7 @@ classdef SimVFA < handle
                         % Ca selects pitch rate and integral errors as measurements
                         Ca  = [C, zeros(size(C,1),length(index_output));
                                zeros(length(index_output),length(A)),eye(length(index_output))]; % "C" in paper
-                        Caz = [Cz, zeros(length(index_cmd))]; % Caz selects dihedral angle and vertical acceleration as measurements
+                        Caz = [Cz, zeros(num_cmd)]; % Caz selects dihedral angle and vertical acceleration as measurements
                         Da  = zeros(size(Ca,1),size(Ba,2)); % no direct feedthrough
 
                         num_output_i = size(Ca,1);
@@ -772,8 +771,7 @@ classdef SimVFA < handle
             
             % Augment plant with integral error (for two tracked states)
             index_output = [1,2]; % outputs to track (from Cz)
-            index_cmd    = [2,3]; % commands used from VFA model
-            num_cmd = length(index_cmd);
+            num_cmd = 2;
             num_state = SO.num_state;
             num_input = SO.num_input;
             num_state_i = SO.num_state_i;
@@ -787,14 +785,14 @@ classdef SimVFA < handle
 
                 % Simulation parameters
                 % high-order tuner gains
-                SO.Gamma.l = 2000*eye(num_input);
-                SO.Gamma.vl = 2000*eye(num_input);
+                SO.Gamma.l = 5000*eye(num_input);
+                SO.Gamma.vl = 5000*eye(num_input);
                 SO.Gamma.p1 = 0.2*eye(num_state-2*num_input);
                 SO.Gamma.p2 = 0.2*eye(num_state-2*num_input);
                 SO.Gamma.p3 = 0.2*eye(num_state);
-                SO.Gamma.p31 = 400*eye(num_output_i);
+                SO.Gamma.p31 = 1000*eye(num_output_i);
                 SO.Gamma.p31xm = SO.Gamma.p31(1:num_input,1:num_input);
-                SO.Gamma.p32 = 400*eye(num_output_i);
+                SO.Gamma.p32 = 1000*eye(num_output_i);
 
                 % intial conditions
                 SO.lambda_0 = eye(num_input);
@@ -946,8 +944,8 @@ classdef SimVFA < handle
             plot(TP.trim_eig_real,TP.trim_eig_imag,'.k','markersize',12);
             h2=plot(TP.trim_eig_real(1,:),TP.trim_eig_imag(1,:),'^m','markersize',8,'LineWidth',2);
             h3=plot(TP.trim_eig_real(12,:),TP.trim_eig_imag(12,:),'sr','markersize',8,'LineWidth',2);
-            h4=plot(TP.trim_eig_real(46,:),TP.trim_eig_imag(46,:),'vb','markersize',8,'LineWidth',2);
-            h=legend([h2 h3 h4],'$\eta=0$ deg','$\eta=11$ deg','$\eta=45$ deg');
+            h4=plot(TP.trim_eig_real(21,:),TP.trim_eig_imag(21,:),'vb','markersize',8,'LineWidth',2);
+            h=legend([h2 h3 h4],'$\eta=0$ deg','$\eta=11$ deg','$\eta=20$ deg');
             set(h,'fontsize',vfa.pltOpt.legfontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname,'Interpreter','Latex','Location','SouthWest')
             grid on;
             xlabel('Real','fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
@@ -960,9 +958,9 @@ classdef SimVFA < handle
             hold on;
             plot(TP.trim_eig_real,TP.trim_eig_imag,'.k','markersize',12);
             h2=plot(TP.trim_eig_real(1,:),TP.trim_eig_imag(1,:),'^m','markersize',8,'LineWidth',2);
-            h3=plot(TP.trim_eig_real(12,:),TP.trim_eig_imag(16,:),'sr','markersize',8,'LineWidth',2);
-            h4=plot(TP.trim_eig_real(46,:),TP.trim_eig_imag(46,:),'vb','markersize',8,'LineWidth',2);
-            h=legend([h2 h3 h4],'$\eta=0$ deg','$\eta=11$ deg','$\eta=45$ deg');
+            h3=plot(TP.trim_eig_real(12,:),TP.trim_eig_imag(12,:),'sr','markersize',8,'LineWidth',2);
+            h4=plot(TP.trim_eig_real(21,:),TP.trim_eig_imag(21,:),'vb','markersize',8,'LineWidth',2);
+            h=legend([h2 h3 h4],'$\eta=0$ deg','$\eta=11$ deg','$\eta=20$ deg');
             set(h,'fontsize',vfa.pltOpt.legfontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname,'Interpreter','Latex','Location','SouthWest')
             grid on;
             xlabel('Real','fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
@@ -975,12 +973,12 @@ classdef SimVFA < handle
             figure;
             hold on;
             box on;
-            plot(0:45,180/pi*TP.trim_inputs(:,2),'-k','markersize',12)
-            plot(0:45,180/pi*TP.trim_inputs(:,3),'--k','markersize',12)
-            plot(0:45,180/pi*TP.trim_inputs(:,4),'.k','markersize',12)
-            plot(0:45,180/pi*TP.trim_inputs(:,5),':k','markersize',9,'LineWidth',2)
-            plot(0:45,TP.trim_inputs(:,1)/5,'ok','markersize',6)
-            axis([0 45 -30 40])
+            plot(TP.etasweep,180/pi*TP.trim_inputs(:,2),'-k','markersize',12)
+            plot(TP.etasweep,180/pi*TP.trim_inputs(:,3),'--k','markersize',12)
+            plot(TP.etasweep,180/pi*TP.trim_inputs(:,4),'.k','markersize',12)
+            plot(TP.etasweep,180/pi*TP.trim_inputs(:,5),':k','markersize',9,'LineWidth',2)
+            plot(TP.etasweep,TP.trim_inputs(:,1)/5,'ok','markersize',6)
+            axis([0 max(TP.etasweep) -30 40])
             ylabel('Trim (Control Surface Inputs [deg], Thrust [5 lbf])','fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
             xlabel('Dihedral angle [deg]','fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
             h=legend('$\delta_{a_c}$','$\delta_{a_o}$','$\delta_{e_c}$','$\delta_{e_o}$','Thrust');
@@ -992,10 +990,10 @@ classdef SimVFA < handle
             figure;
             hold on;
             box on;
-            plot(0:45,TP.trim_states(:,2)*180/pi,'k')
+            plot(TP.etasweep,TP.trim_states(:,2)*180/pi,'k')
             ylabel('Trim angle of attack [deg])','fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
             xlabel('Dihedral angle [deg]','fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
-            axis([0 45 0 10])
+            axis([0 max(TP.etasweep) 0 10])
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
 
         end
@@ -1020,7 +1018,7 @@ classdef SimVFA < handle
             plot(SOO.t_sim, SOO.r_cmd(2,:), 'LineWidth', 1)
             hold on; grid on; plot(SOO.t_sim, SOO.z(2,:), 'LineWidth', 1, 'LineStyle', '-.')
             xlim([0 tsim])
-            title('Vertical Accel (ft/s^2)')
+            title('Vertical Accel Downward (ft/s^2)')
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
 
             subplot(2,2,3)
@@ -1304,9 +1302,6 @@ classdef SimVFA < handle
 
 
             %find the system zeros
-            % num_state_cmd=num_state+num_cmd;
-            % num_input_cmd=num_input+num_cmd;
-            % num_output_cmd=num_output+num_cmd;
             num_state  = length(A);
             num_input  = size(B,2);
             num_output = size(C,1);
@@ -1439,7 +1434,6 @@ classdef SimVFA < handle
                     end
 
                     Bscr = [];
-                    % for i=1:1:vrel(1) %1 to r1
                     for i=1:1:max(vrel)
                        mi   = length(find(vrel>=i));
                        em   = [eye(mi); zeros(m-mi,mi)];
