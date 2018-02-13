@@ -827,10 +827,10 @@ classdef SimVFA < handle
 
                 % Simulation parameters
                 % tuner gains
-                SO.Gamma.l = 1000*eye(num_input);
-                SO.Gamma.p1 = 0.1*eye(num_state-num_input);
-                SO.Gamma.p2 = 0.1*eye(num_state);
-                SO.Gamma.p21 = 200*eye(num_output_i);
+                SO.Gamma.l = 2000*eye(num_input);
+                SO.Gamma.p1 = 0.2*eye(num_state-num_input);
+                SO.Gamma.p2 = 0.2*eye(num_state);
+                SO.Gamma.p21 = 400*eye(num_output_i);
 
                 % intial conditions
                 SO.lambda_0 = eye(num_input);
@@ -1018,7 +1018,7 @@ classdef SimVFA < handle
             plot(SOO.t_sim, SOO.r_cmd(2,:), 'LineWidth', 1)
             hold on; grid on; plot(SOO.t_sim, SOO.z(2,:), 'LineWidth', 1, 'LineStyle', '-.')
             xlim([0 tsim])
-            title('Vertical Accel Downward (ft/s^2)')
+            title('Vertical Accel (ft/s^2)')
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
 
             subplot(2,2,3)
