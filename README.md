@@ -1,6 +1,6 @@
 # SimVFA
 Adaptive Control of Very-Flexible Aircraft in Simulink
-![Rendering of 3-wing VFA model](vfa.png)
+![Rendering of 3-wing VFA model](VFA.jpg)
 
 ## Description
 This package is used to simulate the control of the longitudinal dynamics of a 3-wing very-flexible aircraft (VFA), using MATLAB and Simulink. The required functions for the simulation are encapuslated in the class "SimVFA". The script "RunVFASim" provides the necessary input to instantiate the simulation class, run a simulation, and plot some basic output. The main choice to be made is to use a first-order actuator model and associated adaptive controller, or the more complex second-order actuator model and associated adaptive controller. 
