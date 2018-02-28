@@ -170,19 +170,42 @@ if (adapt)
 
     steps = length(so.tout);
 
-    norm_psi1_ada  = squeeze(vecnorm(so.psi1T));
-    norm_psi1_ada  = norm_psi1_ada/norm_psi1_ada(end);
-    norm_psi2_ada  = squeeze(vecnorm(so.psi2T));
-    norm_psi2_ada  = norm_psi2_ada/norm_psi2_ada(end);
-    norm_psi3_ada  = squeeze(vecnorm(so.psi3T));
-    norm_psi3_ada  = norm_psi3_ada/norm_psi3_ada(end);
-    norm_psi31_ada = squeeze(so.psi31)/so.psi31(end);
-    norm_psi32_ada = squeeze(so.psi32)/so.psi32(end);
-    norm_lam_ada   = squeeze(so.lam)/so.lam(end);
-    norm_ilam_ada  = squeeze(so.ilam)/so.ilam(end);
+    norm_lam   = zeros(steps, 1);
+    norm_psi1  = zeros(steps, 1);
+    norm_psi2  = zeros(steps, 1); 
+    norm_psi31 = zeros(steps, 1);
+    norm_psi32 = zeros(steps, 1);
+    norm_psi3  = zeros(steps, 1);
+    norm_ilam  = zeros(steps, 1);
 
-    norms = [norm_lam_ada, norm_psi1_ada, norm_psi2_ada, ...
-        norm_psi31_ada, norm_psi32_ada, norm_psi3_ada, norm_ilam_ada];
+    lam = squeeze(so.lam);
+    psi1T = squeeze(so.psi1T);
+    psi2T = squeeze(so.psi2T);
+    psi3T = squeeze(so.psi3T);
+    psi31 = squeeze(so.psi31);
+    psi32 = squeeze(so.psi32);
+    ilam  = squeeze(so.ilam);
+    
+    for i=1:steps
+        norm_lam(i) = norm(lam(i));
+        norm_psi1(i) = norm(psi1T(:,i));
+        norm_psi2(i) = norm(psi2T(:,i));
+        norm_psi31(i) = norm(psi31(i));
+        norm_psi32(i) = norm(psi32(i));
+        norm_psi3(i) = norm(psi3T(:,i));
+        norm_ilam(i) = norm(ilam(i));
+    end
+
+    norm_lam   = norm_lam/norm_lam(end);
+    norm_psi1  = norm_psi1/norm_psi1(end);
+    norm_psi2  = norm_psi2/norm_psi2(end);
+    norm_psi31 = norm_psi31/norm_psi31(end);
+    norm_psi32 = norm_psi32/norm_psi32(end);
+    norm_psi3  = norm_psi3/norm_psi3(end);
+    norm_ilam  = norm_ilam/norm_ilam(end);
+
+    norms = [norm_lam, norm_psi1, norm_psi2, ...
+        norm_psi31, norm_psi32, norm_psi3, norm_ilam];
 
     plot(so.tout, norms, 'LineWidth', 1);
     xlim([0 so.tout(end)]);
