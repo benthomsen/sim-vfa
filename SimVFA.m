@@ -1004,34 +1004,54 @@ classdef SimVFA < handle
             
             tsim = vfa.simOpt.tsim;
             
-            figure('Position',[1,1, 800, 400]);
-            subplot(2,2,1)
-            plot(SOO.t_sim, SOO.r_cmd(1,:)*180/pi + vfa.simOpt.eta_nom, 'LineWidth', 1)
-            hold on; grid on; plot(SOO.t_sim, SOO.z(1,:)*180/pi + vfa.simOpt.eta_nom, 'LineWidth', 1, 'LineStyle', '-.')
+            c1 = [0, 0.4470, 0.7410];
+            c2 = [0.466, 0.674, 0.188];
+
+            figure('Position',[1,1, 800, 640]);
+            subplot(4,1,1)
+            plot(SOO.t_sim, SOO.r_cmd(1,:)*180/pi + vfa.simOpt.eta_nom, 'LineWidth', 1.5, 'Color', c1)
+            hold on; grid on; 
+            plot(SOO.t_sim, SOO.z(1,:)*180/pi + vfa.simOpt.eta_nom, 'LineWidth', 1.5, 'LineStyle', '-', 'Color', c2)
             xlim([0 tsim])
-            title('Dihedral (deg)')
+            ylim([min(SOO.r_cmd(1,:)*180/pi)+vfa.simOpt.eta_nom-1 max(SOO.r_cmd(1,:)*180/pi)+vfa.simOpt.eta_nom+1])
+            if (vfa.simOutObj.t_sim(end)/vfa.simOpt.tsim < 0.99)
+                line([SOO.t_sim(end) SOO.t_sim(end)],ylim,'Color',[0.6 0.6 0.6],'LineStyle','--', 'LineWidth', 1, 'HandleVisibility', 'off');
+            end
+            title('Dihedral (deg)','Interpreter','Latex')
             h=legend('Command', 'Output');
-            set(h,'fontsize',vfa.pltOpt.legfontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname,'Interpreter','Latex','Location','SouthEast'); legend('boxoff')
+            set(h,'fontsize',vfa.pltOpt.legfontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname,'Interpreter','Latex','Location','SouthWest'); legend('boxoff')
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
 
-            subplot(2,2,2)
-            plot(SOO.t_sim, SOO.r_cmd(2,:), 'LineWidth', 1)
-            hold on; grid on; plot(SOO.t_sim, SOO.z(2,:), 'LineWidth', 1, 'LineStyle', '-.')
+            subplot(4,1,2)
+            plot(SOO.t_sim, SOO.r_cmd(2,:), 'LineWidth', 1.5, 'Color', c1)
+            hold on; grid on; 
+            plot(SOO.t_sim, SOO.z(2,:), 'LineWidth', 1.5, 'LineStyle', '-', 'Color', c2)
             xlim([0 tsim])
-            title('Vertical Accel (ft/s^2)')
+            ylim([min(SOO.r_cmd(2,:))-1 max(SOO.r_cmd(2,:))+1])
+            if (vfa.simOutObj.t_sim(end)/vfa.simOpt.tsim < 0.99)
+                line([SOO.t_sim(end) SOO.t_sim(end)],ylim,'Color',[0.6 0.6 0.6],'LineStyle','--', 'LineWidth', 1, 'HandleVisibility', 'off');
+            end
+            title('Vertical Accel (ft/s$^2$)','Interpreter','Latex')
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
 
-            subplot(2,2,3)
-            plot(SOO.t_sim, SOO.u_p(1,:)*180/pi, 'LineWidth', 1); grid on;
+            subplot(4,1,3)
+            plot(SOO.t_sim, SOO.u_p(1,:)*180/pi, 'LineWidth', 1.5, 'Color', c1); grid on; hold on;
             xlim([0 tsim])
-            title('Outer Aileron (deg)')
-            xlabel('Time (s)')
+            ylim([0 3])
+            if (vfa.simOutObj.t_sim(end)/vfa.simOpt.tsim < 0.99)
+                line([SOO.t_sim(end) SOO.t_sim(end)],ylim,'Color',[0.6 0.6 0.6],'LineStyle','--', 'LineWidth', 1, 'HandleVisibility', 'off');
+            end
+            title('Outer Aileron (deg)','Interpreter','Latex')
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
 
-            subplot(2,2,4)
-            plot(SOO.t_sim, SOO.u_p(2,:)*180/pi, 'LineWidth', 1); grid on;
+            subplot(4,1,4)
+            plot(SOO.t_sim, SOO.u_p(2,:)*180/pi, 'LineWidth', 1.5, 'Color', c1); grid on; hold on;
             xlim([0 tsim])
-            title('Center Elevator (deg)')
+            ylim([-3 0])
+            if (vfa.simOutObj.t_sim(end)/vfa.simOpt.tsim < 0.99)
+                line([SOO.t_sim(end) SOO.t_sim(end)],ylim,'Color',[0.6 0.6 0.6],'LineStyle','--', 'LineWidth', 1, 'HandleVisibility', 'off');
+            end
+            title('Center Elevator (deg)','Interpreter','Latex')
             xlabel('Time (s)')
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
                     
