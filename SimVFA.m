@@ -142,7 +142,7 @@ classdef SimVFA < handle
                 % for baseline LQR design
                 SO.rk = 50*eye(length(SO.i_input_sel));
                 if (SO.mActOrder == 2)
-                    SO.qk = diag([0.001,2,0.001,2,200,50,0.001,0.001,0.0001,0.0001,2,0.002]);
+                    SO.qk = diag([0.001,2,0.001,2,200,50,0.001,0.001,0.0001,0.0001,2,0.001]);
                 else
                     SO.qk = diag([0.001,2,0.001,2,200,50,0.001,0.001,4,0.01]);
                 end
