@@ -196,8 +196,9 @@ classdef SimVFA < handle
             SO.eta_nom = 11; % select dihedral angle (deg) [== ind-1] from linearized tables
 
             % commands
-            r_step = [-0.5, -1, -0.5, -1, -0.5, -1, 0.5, -0.5, -1, -0.5, -1, -0.5, -1, 0.5, 0, 0];
-            r_step_scaled = [-2*pi/180; 2] * r_step;
+            r_step_eta = -2 * pi/180 * [-0.5, -1, -0.5, -1, -0.5, -1, 0.5, -0.5, -1, -0.5, -1, -0.5, -1, 0.5, 0, 0];
+            r_step_Az  = 2 * [-0.5, -1, -0.5, -1, -0.5, -1, 0.5, -0.5, -1, -0.5, -1, -1, 0.5, 0.5, 0, 0];
+            r_step_scaled = [r_step_eta; r_step_Az];
 
             % simulation times for command steps
             t_step = 70;

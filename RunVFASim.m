@@ -74,7 +74,7 @@ clear; clc;
 opt.dataPath   = ['data', filesep]; % where to look for/store .mat files 
                                     % (relative to working directory)
 opt.adaFlag    = false;              % use adaptive control?
-opt.uncertFlag = true;              % uncertainty in dynamics?
+opt.uncertFlag = false;              % uncertainty in dynamics?
 opt.reComp     = true;              % trim, linearize, recompute controller
 opt.pActOrder  = 2;                 % order of plant actuator dynamics (1 or 2)
 opt.mActOrder  = 2;                 % order of modeled actuator dynamics
