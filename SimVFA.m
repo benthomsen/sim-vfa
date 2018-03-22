@@ -142,9 +142,9 @@ classdef SimVFA < handle
                 % for baseline LQR design
                 SO.rk = 50*eye(length(SO.i_input_sel));
                 if (SO.mActOrder == 2)
-                    SO.qk = diag([0.001,2,0.001,2,200,50,0.001,0.001,0.0001,0.0001,2,0.0002]);
+                    SO.qk = diag([0.001,2,0.001,2,200,50,0.001,0.001,0.0001,0.0001,2,0.001]);
                 else
-                    SO.qk = diag([0.001,2,0.001,2,200,50,0.001,0.001,8,0.001]);
+                    SO.qk = diag([0.001,2,0.001,2,200,50,0.001,0.001,4,0.01]);
                 end
             else % model order = true order of linearized dynamics
                 % first order actuator dynamics (nominal)
@@ -177,7 +177,7 @@ classdef SimVFA < handle
 
                 % for baseline LQR design
                 SO.rk = 50*eye(length(SO.i_input_sel));
-                SO.qk = diag([0.001,2,0.001,2,200,50,0.001,0.001,8,0.001]);
+                SO.qk = diag([0.001,2,0.001,2,200,50,0.001,0.001,4,0.01]);
             end
             
             SO.Lambda_s = SO.lambda_s*eye(2); % actuator effectiveness matrix
@@ -196,8 +196,8 @@ classdef SimVFA < handle
             SO.eta_nom = 11; % select dihedral angle (deg) [== ind-1] from linearized tables
 
             % commands
-            r_step_eta = 1 * pi/180 * [1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1];
-            r_step_Az  = 1.5 * [-1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1];
+            r_step_eta = -2 * pi/180 * [-0.5, -1, -0.5, -1, -0.5, -1, 0.5, -0.5, -1, -0.5, -1, -0.5, -1, 0.5, 0, 0];
+            r_step_Az  = 2 * [-0.5, -1, -0.5, -1, -0.5, -1, 0.5, -0.5, -1, -0.5, -1, -1, 0.5, 0.5, 0, 0];
             r_step_scaled = [r_step_eta; r_step_Az];
 
             % simulation times for command steps
@@ -1054,7 +1054,7 @@ classdef SimVFA < handle
             title('Center Elevator (deg)','Interpreter','Latex')
             xlabel('Time (s)')
             set(gca,'fontsize',vfa.pltOpt.fontsize,'fontweight',vfa.pltOpt.weight,'fontname',vfa.pltOpt.fontname)
-                    
+
             % plot adaptive parameters (matrix norms to reduce dimensionality)
             if (vfa.simOpt.adaFlag)
                 steps = length(SOO.t_sim);
